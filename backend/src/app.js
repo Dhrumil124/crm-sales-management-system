@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 
+const authMiddleware = require("./middleware/authMiddleware");
+
 const app = express();
 
 app.use(cors());
@@ -13,6 +15,13 @@ app.get("/", (req, res) => {
 app.get("/api/test", (req, res) => {
   res.json({
     message: "API is working!"
+  });
+});
+
+app.get("/api/protected-test", authMiddleware, (req, res) => {
+  res.json({
+    message: "You accessed a protected route!",
+    user: req.user
   });
 });
 
