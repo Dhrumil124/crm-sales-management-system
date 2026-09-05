@@ -281,15 +281,6 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
               </button>
             </div>
           </div>
-
-          <div className="mt-6 p-3.5 rounded-xl bg-slate-900 text-white text-xs">
-            <div className="font-semibold flex items-center gap-1.5 text-indigo-300 mb-1">
-              <span>Architectural Status</span>
-            </div>
-            <p className="text-slate-300 leading-relaxed text-[11px]">
-              Pre-database phase active with async storage service. All 4 business modules communicate with genuine Express REST endpoints.
-            </p>
-          </div>
         </div>
       </div>
 

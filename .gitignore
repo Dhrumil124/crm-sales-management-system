@@ -22,6 +22,9 @@ lerna-debug.log*
 
 # Local files
 *.local
+*.sqlite
+*.sqlite3
+*.db
 
 # Editor directories and files
 .vscode/*

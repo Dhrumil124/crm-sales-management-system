@@ -7,10 +7,15 @@ import CrmView from "./components/crm/CrmView";
 import PipelineView from "./components/pipeline/PipelineView";
 import QuotationView from "./components/quotations/QuotationView";
 import TicketView from "./components/tickets/TicketView";
+import AuthPage from "./components/auth/AuthPage";
 
 export default function App() {
+  // Authentication State
+  const [currentUser, setCurrentUser] = useState(() => api.auth.getUser());
+  const [authChecking, setAuthChecking] = useState(true);
+
+  // Application View State
   const [currentTab, setCurrentTab] = useState("dashboard");
-  const [apiConnected, setApiConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -31,13 +36,44 @@ export default function App() {
     }, 4000);
   };
 
-  // Centralized data fetch from Express backend
+  // 1. Session Rehydration on Initial Load
+  useEffect(() => {
+    const verifyAuthSession = async () => {
+      const token = api.auth.getToken();
+      if (!token) {
+        setCurrentUser(null);
+        setAuthChecking(false);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await api.auth.getMe();
+        if (response?.user) {
+          setCurrentUser(response.user);
+          api.auth.setSession(token, response.user);
+        } else {
+          api.auth.logout();
+          setCurrentUser(null);
+        }
+      } catch {
+        // Expired or invalid token
+        api.auth.logout();
+        setCurrentUser(null);
+      } finally {
+        setAuthChecking(false);
+      }
+    };
+
+    verifyAuthSession();
+  }, []);
+
+  // 2. Centralized data fetch from Express backend (Protected)
   const loadAllData = useCallback(async (quiet = false) => {
     if (!quiet) setIsRefreshing(true);
     try {
       // Test health first
       await api.checkHealth();
-      setApiConnected(true);
 
       // Fetch all 4 modules and dashboard summary in parallel
       const [summaryData, crmData, dealsData, quotesData, ticketsData] = await Promise.all([
@@ -55,17 +91,37 @@ export default function App() {
       setTickets(ticketsData);
     } catch (err) {
       console.warn("Backend connection failed:", err.message);
-      setApiConnected(false);
-      showToast("Could not connect to backend on port 5000: " + err.message, "error");
+      showToast("Could not sync backend data: " + err.message, "error");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
   }, []);
 
+  // Sync data once authenticated
   useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+    if (currentUser) {
+      loadAllData();
+    }
+  }, [currentUser, loadAllData]);
+
+  // Authentication Handlers
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user);
+    showToast(`Welcome, ${user.name}! Workspace ready.`);
+  };
+
+  const handleLogout = () => {
+    api.auth.logout();
+    setCurrentUser(null);
+    setDashboardSummary(null);
+    setCustomers([]);
+    setDeals([]);
+    setQuotations([]);
+    setTickets([]);
+    setCurrentTab("dashboard");
+    showToast("You have been signed out safely.");
+  };
 
   // ------------------------------------------------------------------
   // 1. CRM Handlers
@@ -164,6 +220,52 @@ export default function App() {
     setCurrentTab(targetModule);
   };
 
+  // ------------------------------------------------------------------
+  // Auth Gate: Checking initial session
+  // ------------------------------------------------------------------
+  if (authChecking) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-100 text-slate-600">
+        <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-xs font-medium text-slate-500">
+          Loading workspace...
+        </p>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Auth Gate: Unauthenticated Visitor -> Render AuthPage
+  // ------------------------------------------------------------------
+  if (!currentUser) {
+    return (
+      <>
+        {toast && (
+          <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+            <div
+              className={`px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold text-white flex items-center gap-2 border ${
+                toast.type === "error"
+                  ? "bg-rose-600 border-rose-500 shadow-rose-600/30"
+                  : "bg-slate-900 border-slate-700 shadow-slate-900/30"
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  toast.type === "error" ? "bg-rose-300" : "bg-emerald-400"
+                }`}
+              />
+              <span>{toast.message}</span>
+            </div>
+          </div>
+        )}
+        <AuthPage onAuthSuccess={handleAuthSuccess} />
+      </>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Authenticated Workspace Application (Protected)
+  // ------------------------------------------------------------------
   return (
     <div className="flex min-h-screen bg-slate-100 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
       {/* Toast Alert Feedback */}
@@ -190,13 +292,14 @@ export default function App() {
       <Sidebar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        apiConnected={apiConnected}
         counts={{
           customers: customers.length,
           deals: deals.length,
           quotations: quotations.length,
           tickets: tickets.length
         }}
+        user={currentUser}
+        onLogout={handleLogout}
       />
 
       {/* Main Content Area */}
@@ -206,6 +309,8 @@ export default function App() {
           onRefresh={() => loadAllData(false)}
           isRefreshing={isRefreshing}
           onOpenCreateModal={handleOpenCreateModal}
+          user={currentUser}
+          onLogout={handleLogout}
         />
 
         <main className="flex-1 p-6 md:p-8 overflow-y-auto">

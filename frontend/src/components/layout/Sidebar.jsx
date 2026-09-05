@@ -7,7 +7,13 @@ import {
   IconTicket
 } from "../common/Icons";
 
-export default function Sidebar({ currentTab, setCurrentTab, apiConnected, counts = {} }) {
+export default function Sidebar({
+  currentTab,
+  setCurrentTab,
+  counts = {},
+  user,
+  onLogout
+}) {
   const navItems = [
     {
       id: "dashboard",
@@ -52,9 +58,9 @@ export default function Sidebar({ currentTab, setCurrentTab, apiConnected, count
         <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-500 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/30">
           CS
         </div>
-        <div>
-          <h1 className="font-bold text-white text-base tracking-tight leading-tight">
-            Sales & CRM Suite
+        <div className="min-w-0">
+          <h1 className="font-bold text-white text-base tracking-tight leading-tight truncate">
+            {user?.organizationName || "Sales & CRM Suite"}
           </h1>
           <p className="text-xs text-slate-400">Enterprise Edition</p>
         </div>
@@ -72,7 +78,7 @@ export default function Sidebar({ currentTab, setCurrentTab, apiConnected, count
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all duration-150 cursor-pointer ${
                 isActive
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
                   : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
@@ -98,29 +104,28 @@ export default function Sidebar({ currentTab, setCurrentTab, apiConnected, count
         })}
       </nav>
 
-      {/* Connection Health Indicator */}
-      <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-400 font-medium">Backend API</span>
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                apiConnected ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
-              }`}
-            />
-            <span
-              className={`font-semibold ${
-                apiConnected ? "text-emerald-400" : "text-rose-400"
-              }`}
-            >
-              {apiConnected ? "Port 5000 Online" : "Offline"}
-            </span>
+      {/* User / Organization Profile Info */}
+      {user && (
+        <div className="p-3 mx-3 mb-2 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-white truncate">{user.name}</p>
+            <p className="text-[11px] text-slate-400 truncate">
+              {user.email}
+            </p>
           </div>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              title="Sign Out"
+              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
         </div>
-        <p className="text-[11px] text-slate-400 mt-1 font-mono">
-          JWT Middleware Active
-        </p>
-      </div>
+      )}
     </aside>
   );
 }

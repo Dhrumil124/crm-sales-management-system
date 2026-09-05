@@ -1,14 +1,22 @@
 /**
  * Centralized JavaScript API / HTTP Client
  * Connects React frontend directly to the Express backend.
+ * Automatically injects JWT Bearer token into authenticated requests.
  */
 
 const API_BASE_URL = "http://localhost:5000/api";
+const TOKEN_KEY = "crm_auth_token";
+const USER_KEY = "crm_auth_user";
 
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Retrieve token from localStorage if present
+  const token = localStorage.getItem(TOKEN_KEY);
+
   const headers = {
     "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers
   };
 
@@ -26,6 +34,13 @@ async function request(endpoint, options = {}) {
       } catch {
         // use default message
       }
+
+      // If token expired or invalid (401), clean up session
+      if (response.status === 401 && endpoint !== "/auth/login") {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+      }
+
       throw new Error(errorMessage);
     }
 
@@ -37,6 +52,30 @@ async function request(endpoint, options = {}) {
 }
 
 export const api = {
+  // Authentication & Session Management
+  auth: {
+    signup: (data) => request("/auth/signup", { method: "POST", body: JSON.stringify(data) }),
+    login: (data) => request("/auth/login", { method: "POST", body: JSON.stringify(data) }),
+    getMe: () => request("/auth/me"),
+    getToken: () => localStorage.getItem(TOKEN_KEY),
+    getUser: () => {
+      try {
+        const u = localStorage.getItem(USER_KEY);
+        return u ? JSON.parse(u) : null;
+      } catch {
+        return null;
+      }
+    },
+    setSession: (token, user) => {
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+      if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+    },
+    logout: () => {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    }
+  },
+
   // Health & Test
   checkHealth: () => request("/test"),
 
