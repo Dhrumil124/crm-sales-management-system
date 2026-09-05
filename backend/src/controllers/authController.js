@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { runTransaction, get } = require("../database/db");
+const { runTransaction, get, seedDefaultPipelineStages } = require("../database/db");
 
 // Simple ID generator helper
 const generateId = (prefix) =>
@@ -50,18 +50,21 @@ const signup = async (req, res) => {
     const userId = generateId("user");
 
     // 5. Execute creation within a strict database transaction
-    await runTransaction(async ({ run }) => {
+    await runTransaction(async (executor) => {
       // Step A: Insert Organization
-      await run(
+      await executor.run(
         "INSERT INTO organizations (id, name, created_at) VALUES (?, ?, ?)",
         [orgId, cleanOrgName, new Date().toISOString()]
       );
 
       // Step B: Insert User associated with the Organization
-      await run(
+      await executor.run(
         "INSERT INTO users (id, organization_id, name, email, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [userId, orgId, cleanName, cleanEmail, passwordHash, "admin", new Date().toISOString()]
       );
+
+      // Step C: Seed default pipeline stages for the new Organization
+      await seedDefaultPipelineStages(orgId, executor);
     });
 
     // 6. Generate JWT with explicit 24-hour expiration
