@@ -130,6 +130,10 @@ async function runPersistenceTests() {
     const quoteDemoUpdated = await quotationStore.updateStatus("QT-1001", "Accepted");
     assert(quoteDemoUpdated !== null, "Compatibility lookup on QT-1001 resolved canonical SQLite quote");
 
+    // 2.6 Clean up test quotation to maintain clean production state
+    const quoteDeleted = await quotationStore.delete(newQuote.id);
+    assert(quoteDeleted === true, "Test quotation cleaned up successfully");
+
     // -------------------------------------------------------------
     // PART 3: SUPPORT TICKET PERSISTENCE
     // -------------------------------------------------------------
@@ -167,6 +171,10 @@ async function runPersistenceTests() {
     const dbComments = await all("SELECT * FROM ticket_comments WHERE ticket_id = ?", [newTicket.id]);
     assert(dbComments.length >= 1, `Direct SQLite check: comment verified in ticket_comments table (${dbComments[0].comment})`);
 
+    // 3.5 Clean up test ticket to maintain clean production state
+    const ticketDeleted = await ticketStore.delete(newTicket.id);
+    assert(ticketDeleted === true, "Test ticket cleaned up successfully");
+
     // -------------------------------------------------------------
     // PART 4: CUSTOMER PERSISTENCE
     // -------------------------------------------------------------
@@ -194,8 +202,9 @@ async function runPersistenceTests() {
     });
     assert(quoteForNewCust !== null, `Quotation successfully created for new customer ${newContact.id} without foreign key error`);
 
-    // Clean up temporary quote
+    // Clean up temporary quote and contact
     await quotationStore.delete(quoteForNewCust.id);
+    await customerStore.delete(newContact.id);
 
     console.log("\n========================================================");
     console.log(`PERSISTENCE TEST SUMMARY: ${passed} PASSED, ${failed} FAILED`);
