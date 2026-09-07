@@ -233,7 +233,60 @@ let nextTicketNumber = 1004;
 // CRM (Customers & Leads) Storage Interface
 // -------------------------------------------------------------
 const customerStore = {
+  async syncFromDatabase() {
+    try {
+      const { all } = require("../database/db");
+      const dbLeads = await all(
+        "SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note FROM leads l"
+      );
+      const dbCustomers = await all("SELECT * FROM customers");
+
+      // Merge database leads into customers list if not already present
+      for (const l of dbLeads) {
+        const exists = customers.some(
+          c => c.id === l.id || (c.email && c.email.toLowerCase() === (l.email || "").toLowerCase() && c.name.toLowerCase() === (l.name || "").toLowerCase())
+        );
+        if (!exists) {
+          customers.push({
+            id: l.id,
+            name: l.name,
+            email: l.email || "",
+            phone: l.phone || "",
+            company: l.company || "",
+            type: "lead",
+            status: l.status || "New",
+            notes: l.note || "",
+            createdAt: l.created_at || new Date().toISOString()
+          });
+        }
+      }
+
+      // Merge database customers into customers list if not already present
+      for (const cu of dbCustomers) {
+        const exists = customers.some(
+          c => c.id === cu.id || (c.email && c.email.toLowerCase() === (cu.email || "").toLowerCase() && c.name.toLowerCase() === (cu.name || "").toLowerCase())
+        );
+        if (!exists) {
+          customers.push({
+            id: cu.id,
+            name: cu.name,
+            email: cu.email || "",
+            phone: cu.phone || "",
+            company: cu.company || "",
+            type: "customer",
+            status: cu.status || "Active",
+            notes: cu.address || "",
+            createdAt: cu.created_at || new Date().toISOString()
+          });
+        }
+      }
+    } catch {
+      // Gracefully continue with in-memory store if DB is initializing
+    }
+  },
+
   async getAll({ search = "", type = "", status = "" } = {}) {
+    await this.syncFromDatabase();
     let result = [...customers];
     if (type) {
       result = result.filter(c => c.type.toLowerCase() === type.toLowerCase());
@@ -254,6 +307,7 @@ const customerStore = {
   },
 
   async getById(id) {
+    await this.syncFromDatabase();
     return customers.find(c => c.id === id) || null;
   },
 
@@ -270,10 +324,63 @@ const customerStore = {
       createdAt: new Date().toISOString()
     };
     customers.unshift(newCustomer);
+
+    // Persist to SQLite database so it never vanishes on server restart
+    try {
+      const { run, all } = require("../database/db");
+      const org = await all("SELECT id FROM organizations LIMIT 1");
+      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+
+      if (newCustomer.type === "lead") {
+        await run(
+          `INSERT INTO leads (id, organization_id, name, email, phone, company, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newCustomer.id,
+            orgId,
+            newCustomer.name,
+            newCustomer.email,
+            newCustomer.phone,
+            newCustomer.company,
+            newCustomer.status,
+            newCustomer.createdAt,
+            newCustomer.createdAt
+          ]
+        );
+        if (newCustomer.notes) {
+          await run(
+            `INSERT INTO lead_notes (id, lead_id, content, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)`,
+            [`note-${Date.now()}`, newCustomer.id, newCustomer.notes, newCustomer.createdAt, newCustomer.createdAt]
+          );
+        }
+      } else {
+        await run(
+          `INSERT INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            newCustomer.id,
+            orgId,
+            newCustomer.name,
+            newCustomer.email,
+            newCustomer.phone,
+            newCustomer.company,
+            newCustomer.notes,
+            newCustomer.status,
+            newCustomer.createdAt,
+            newCustomer.createdAt
+          ]
+        );
+      }
+    } catch {
+      // Gracefully proceed if DB write is deferred
+    }
+
     return newCustomer;
   },
 
   async update(id, data) {
+    await this.syncFromDatabase();
     const index = customers.findIndex(c => c.id === id);
     if (index === -1) return null;
 
@@ -283,13 +390,37 @@ const customerStore = {
       id: customers[index].id, // protect ID
       createdAt: customers[index].createdAt // preserve creation date
     };
+
+    // Update SQLite database
+    try {
+      const { run } = require("../database/db");
+      const updated = customers[index];
+      await run(
+        `UPDATE leads SET name = ?, email = ?, phone = ?, company = ?, status = ?, updated_at = ? WHERE id = ?`,
+        [updated.name, updated.email, updated.phone, updated.company, updated.status, new Date().toISOString(), id]
+      );
+      await run(
+        `UPDATE customers SET name = ?, email = ?, phone = ?, company = ?, status = ?, updated_at = ? WHERE id = ?`,
+        [updated.name, updated.email, updated.phone, updated.company, updated.status, new Date().toISOString(), id]
+      );
+    } catch {}
+
     return customers[index];
   },
 
   async delete(id) {
+    await this.syncFromDatabase();
     const index = customers.findIndex(c => c.id === id);
     if (index === -1) return false;
     customers.splice(index, 1);
+
+    // Delete from SQLite database
+    try {
+      const { run } = require("../database/db");
+      await run("DELETE FROM leads WHERE id = ?", [id]);
+      await run("DELETE FROM customers WHERE id = ?", [id]);
+    } catch {}
+
     return true;
   }
 };
@@ -298,7 +429,36 @@ const customerStore = {
 // Sales Pipeline (Deals) Storage Interface
 // -------------------------------------------------------------
 const dealStore = {
+  async syncFromDatabase() {
+    try {
+      const { all } = require("../database/db");
+      const dbDeals = await all(`
+        SELECT d.*, l.name as lead_name, l.company as lead_company, s.name as stage_name
+        FROM deals d
+        LEFT JOIN leads l ON d.lead_id = l.id
+        LEFT JOIN pipeline_stages s ON d.stage_id = s.id
+      `);
+      for (const d of dbDeals) {
+        const exists = deals.some(deal => deal.id === d.id);
+        if (!exists) {
+          deals.push({
+            id: d.id,
+            title: d.title,
+            customerId: d.lead_id || "",
+            customerName: d.lead_company || d.lead_name || "",
+            value: Number(d.value) || 0,
+            stage: d.stage_name || "Lead",
+            expectedCloseDate: d.expected_close_date || "",
+            notes: d.notes || "",
+            createdAt: d.created_at || new Date().toISOString()
+          });
+        }
+      }
+    } catch {}
+  },
+
   async getAll({ stage = "", customerId = "" } = {}) {
+    await this.syncFromDatabase();
     let result = [...deals];
     if (stage) {
       result = result.filter(d => d.stage.toLowerCase() === stage.toLowerCase());
@@ -310,6 +470,7 @@ const dealStore = {
   },
 
   async getById(id) {
+    await this.syncFromDatabase();
     return deals.find(d => d.id === id) || null;
   },
 
@@ -335,10 +496,29 @@ const dealStore = {
       createdAt: new Date().toISOString()
     };
     deals.unshift(newDeal);
+
+    // Persist to SQLite deals table
+    try {
+      const { run, all } = require("../database/db");
+      const org = await all("SELECT id FROM organizations LIMIT 1");
+      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+      const stages = await all("SELECT id, name FROM pipeline_stages WHERE organization_id = ? ORDER BY stage_order ASC", [orgId]);
+      const matchedStage = stages.find(s => s.name.toLowerCase() === (newDeal.stage || "lead").toLowerCase()) || stages[0];
+
+      if (matchedStage) {
+        await run(
+          `INSERT INTO deals (id, organization_id, title, lead_id, stage_id, value, expected_close_date, notes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [newDeal.id, orgId, newDeal.title, newDeal.customerId || null, matchedStage.id, newDeal.value, newDeal.expectedCloseDate || null, newDeal.notes, newDeal.createdAt, newDeal.createdAt]
+        );
+      }
+    } catch {}
+
     return newDeal;
   },
 
   async update(id, data) {
+    await this.syncFromDatabase();
     const index = deals.findIndex(d => d.id === id);
     if (index === -1) return null;
 
@@ -352,24 +532,52 @@ const dealStore = {
       id: deals[index].id,
       createdAt: deals[index].createdAt
     };
+
+    try {
+      const { run } = require("../database/db");
+      await run(
+        `UPDATE deals SET title = ?, value = ?, expected_close_date = ?, notes = ?, updated_at = ? WHERE id = ?`,
+        [deals[index].title, deals[index].value, deals[index].expectedCloseDate, deals[index].notes, new Date().toISOString(), id]
+      );
+    } catch {}
+
     return deals[index];
   },
 
   async updateStage(id, stage) {
+    await this.syncFromDatabase();
     const index = deals.findIndex(d => d.id === id);
     if (index === -1) return null;
     deals[index].stage = stage;
+
+    try {
+      const { run, all } = require("../database/db");
+      const stages = await all("SELECT id, name FROM pipeline_stages");
+      const matched = stages.find(s => s.name.toLowerCase() === stage.toLowerCase());
+      if (matched) {
+        await run(`UPDATE deals SET stage_id = ?, updated_at = ? WHERE id = ?`, [matched.id, new Date().toISOString(), id]);
+      }
+    } catch {}
+
     return deals[index];
   },
 
   async delete(id) {
+    await this.syncFromDatabase();
     const index = deals.findIndex(d => d.id === id);
     if (index === -1) return false;
     deals.splice(index, 1);
+
+    try {
+      const { run } = require("../database/db");
+      await run("DELETE FROM deals WHERE id = ?", [id]);
+    } catch {}
+
     return true;
   },
 
   async getStats() {
+    await this.syncFromDatabase();
     const stages = ["Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost"];
     const statsByStage = {};
     stages.forEach(s => {
@@ -405,7 +613,45 @@ const dealStore = {
 // Quotation Storage & Calculation Interface
 // -------------------------------------------------------------
 const quotationStore = {
+  async syncFromDatabase() {
+    try {
+      const { all } = require("../database/db");
+      const dbQuotes = await all(`
+        SELECT q.*, c.name as cust_name, c.company as cust_company
+        FROM quotations q
+        LEFT JOIN customers c ON q.customer_id = c.id
+      `);
+      for (const q of dbQuotes) {
+        const exists = quotations.some(quote => quote.id === q.id || quote.quoteNumber === q.quote_number);
+        if (!exists) {
+          const items = await all("SELECT * FROM quotation_items WHERE quotation_id = ?", [q.id]);
+          quotations.push({
+            id: q.id,
+            quoteNumber: q.quote_number,
+            customerId: q.customer_id,
+            customerName: q.cust_company || q.cust_name || "",
+            items: items.map(i => ({
+              description: i.description,
+              quantity: i.quantity,
+              unitPrice: i.unit_price,
+              taxRate: i.tax_rate,
+              lineTotal: i.line_total
+            })),
+            subtotal: q.subtotal,
+            taxTotal: q.tax_total,
+            grandTotal: q.grand_total,
+            status: q.status,
+            issueDate: q.issue_date,
+            validUntil: q.valid_until,
+            createdAt: q.created_at || new Date().toISOString()
+          });
+        }
+      }
+    } catch {}
+  },
+
   async getAll({ status = "", customerId = "" } = {}) {
+    await this.syncFromDatabase();
     let result = [...quotations];
     if (status) {
       result = result.filter(q => q.status.toLowerCase() === status.toLowerCase());
@@ -417,13 +663,10 @@ const quotationStore = {
   },
 
   async getById(id) {
+    await this.syncFromDatabase();
     return quotations.find(q => q.id === id) || null;
   },
 
-  /**
-   * Performs strictly validated server-side mathematical calculations
-   * for line items, subtotals, taxes, and grand totals.
-   */
   calculateTotals(items = []) {
     let subtotal = 0;
     let taxTotal = 0;
@@ -487,20 +730,58 @@ const quotationStore = {
     };
 
     quotations.unshift(newQuotation);
+
+    // Persist to SQLite quotations & quotation_items tables
+    try {
+      const { run, all } = require("../database/db");
+      const org = await all("SELECT id FROM organizations LIMIT 1");
+      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+
+      await run(
+        `INSERT INTO quotations (id, organization_id, quote_number, customer_id, issue_date, valid_until, status, subtotal, tax_total, grand_total, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newQuotation.id, orgId, newQuotation.quoteNumber, newQuotation.customerId, newQuotation.issueDate, newQuotation.validUntil, newQuotation.status, subtotal, taxTotal, grandTotal, newQuotation.createdAt, newQuotation.createdAt]
+      );
+
+      for (const itm of items) {
+        const itmId = generateId("item");
+        const itmTax = Number((itm.lineTotal * (itm.taxRate / 100)).toFixed(2));
+        await run(
+          `INSERT INTO quotation_items (id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [itmId, newQuotation.id, itm.description, itm.quantity, itm.unitPrice, itm.taxRate, itmTax, itm.lineTotal, newQuotation.createdAt]
+        );
+      }
+    } catch {}
+
     return newQuotation;
   },
 
   async updateStatus(id, status) {
+    await this.syncFromDatabase();
     const index = quotations.findIndex(q => q.id === id);
     if (index === -1) return null;
     quotations[index].status = status;
+
+    try {
+      const { run } = require("../database/db");
+      await run(`UPDATE quotations SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
+    } catch {}
+
     return quotations[index];
   },
 
   async delete(id) {
+    await this.syncFromDatabase();
     const index = quotations.findIndex(q => q.id === id);
     if (index === -1) return false;
     quotations.splice(index, 1);
+
+    try {
+      const { run } = require("../database/db");
+      await run(`DELETE FROM quotations WHERE id = ?`, [id]);
+    } catch {}
+
     return true;
   }
 };
@@ -509,7 +790,47 @@ const quotationStore = {
 // Support Ticket Storage Interface
 // -------------------------------------------------------------
 const ticketStore = {
+  async syncFromDatabase() {
+    try {
+      const { all } = require("../database/db");
+      const dbTickets = await all(`
+        SELECT t.*, c.name as cust_name, c.company as cust_company, u.name as user_name
+        FROM tickets t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        LEFT JOIN users u ON t.assigned_to = u.id
+      `);
+      for (const t of dbTickets) {
+        const exists = tickets.some(tck => tck.id === t.id || tck.ticketNumber === t.ticket_number);
+        if (!exists) {
+          const comments = await all(
+            "SELECT tc.*, u.name as author_name FROM ticket_comments tc LEFT JOIN users u ON tc.user_id = u.id WHERE tc.ticket_id = ?",
+            [t.id]
+          );
+          tickets.push({
+            id: t.id,
+            ticketNumber: t.ticket_number,
+            customerId: t.customer_id,
+            customerName: t.cust_company || t.cust_name || "",
+            title: t.title,
+            description: t.description,
+            priority: t.priority,
+            status: t.status,
+            assignedTo: t.user_name || "Support Team",
+            comments: comments.map(c => ({
+              id: c.id,
+              author: c.author_name || "Staff",
+              text: c.comment,
+              createdAt: c.created_at
+            })),
+            createdAt: t.created_at || new Date().toISOString()
+          });
+        }
+      }
+    } catch {}
+  },
+
   async getAll({ status = "", priority = "", customerId = "" } = {}) {
+    await this.syncFromDatabase();
     let result = [...tickets];
     if (status) {
       result = result.filter(t => t.status.toLowerCase() === status.toLowerCase());
@@ -524,6 +845,7 @@ const ticketStore = {
   },
 
   async getById(id) {
+    await this.syncFromDatabase();
     return tickets.find(t => t.id === id) || null;
   },
 
@@ -551,17 +873,39 @@ const ticketStore = {
     };
 
     tickets.unshift(newTicket);
+
+    // Persist to SQLite tickets table
+    try {
+      const { run, all } = require("../database/db");
+      const org = await all("SELECT id FROM organizations LIMIT 1");
+      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+
+      await run(
+        `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newTicket.id, orgId, newTicket.ticketNumber, newTicket.customerId || null, newTicket.title, newTicket.description, newTicket.priority, newTicket.status, newTicket.createdAt, newTicket.createdAt]
+      );
+    } catch {}
+
     return newTicket;
   },
 
   async updateStatus(id, status) {
+    await this.syncFromDatabase();
     const index = tickets.findIndex(t => t.id === id);
     if (index === -1) return null;
     tickets[index].status = status;
+
+    try {
+      const { run } = require("../database/db");
+      await run(`UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
+    } catch {}
+
     return tickets[index];
   },
 
   async addComment(id, { author = "Staff", text }) {
+    await this.syncFromDatabase();
     const index = tickets.findIndex(t => t.id === id);
     if (index === -1) return null;
 
@@ -573,13 +917,30 @@ const ticketStore = {
     };
 
     tickets[index].comments.push(newComment);
+
+    try {
+      const { run } = require("../database/db");
+      await run(
+        `INSERT INTO ticket_comments (id, ticket_id, comment, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+        [newComment.id, id, newComment.text, newComment.createdAt, newComment.createdAt]
+      );
+    } catch {}
+
     return tickets[index];
   },
 
   async delete(id) {
+    await this.syncFromDatabase();
     const index = tickets.findIndex(t => t.id === id);
     if (index === -1) return false;
     tickets.splice(index, 1);
+
+    try {
+      const { run } = require("../database/db");
+      await run(`DELETE FROM tickets WHERE id = ?`, [id]);
+    } catch {}
+
     return true;
   }
 };

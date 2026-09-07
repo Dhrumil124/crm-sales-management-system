@@ -168,6 +168,180 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_stage_id ON deals(stage_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_lead_id ON deals(lead_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_close_date ON deals(expected_close_date)`);
+
+  // -------------------------------------------------------------
+  // Day 4 Tables: Customers, Quotations, Quotation Items, Tickets,
+  //               Ticket Comments, Ticket Attachments, Payments
+  // -------------------------------------------------------------
+
+  // 1. Customers Table (Organization-Aware CRM Client Entities)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS customers (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT,
+      phone TEXT,
+      company TEXT,
+      address TEXT,
+      status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Pending', 'Archived')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 2. Quotations Table (Organization-Aware Unique Quotes with Financial Totals)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS quotations (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      quote_number TEXT NOT NULL,
+      customer_id TEXT NOT NULL,
+      issue_date TEXT NOT NULL,
+      valid_until TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Sent', 'Accepted', 'Declined')),
+      subtotal NUMERIC NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
+      tax_total NUMERIC NOT NULL DEFAULT 0 CHECK (tax_total >= 0),
+      grand_total NUMERIC NOT NULL DEFAULT 0 CHECK (grand_total >= 0),
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      UNIQUE (organization_id, quote_number)
+    )
+  `);
+
+  // 3. Quotation Items Table (Line Items with Validated Rates, Quantities & Cascading)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS quotation_items (
+      id TEXT PRIMARY KEY,
+      quotation_id TEXT NOT NULL,
+      description TEXT NOT NULL,
+      quantity NUMERIC NOT NULL CHECK (quantity > 0),
+      unit_price NUMERIC NOT NULL CHECK (unit_price >= 0),
+      tax_rate NUMERIC NOT NULL DEFAULT 0 CHECK (tax_rate >= 0),
+      tax_amount NUMERIC NOT NULL DEFAULT 0 CHECK (tax_amount >= 0),
+      line_total NUMERIC NOT NULL DEFAULT 0 CHECK (line_total >= 0),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+    )
+  `);
+
+  // 4. Tickets Table (Organization-Aware Support Tickets with Staff Assignment)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      ticket_number TEXT NOT NULL,
+      customer_id TEXT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High', 'Urgent')),
+      status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'In Progress', 'Waiting', 'Resolved', 'Closed')),
+      assigned_to TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+      FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+      UNIQUE (organization_id, ticket_number)
+    )
+  `);
+
+  // 5. Ticket Comments Table (Discussion Threading with Cascading Ticket Removal)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ticket_comments (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      user_id TEXT,
+      comment TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // 6. Ticket Attachments Table (Metadata-Only File Attachment Tracking)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ticket_attachments (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      comment_id TEXT,
+      uploaded_by TEXT,
+      original_filename TEXT NOT NULL,
+      stored_path TEXT NOT NULL,
+      mime_type TEXT,
+      file_size INTEGER NOT NULL CHECK (file_size >= 0),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+      FOREIGN KEY (comment_id) REFERENCES ticket_comments(id) ON DELETE SET NULL,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  // 7. Payments Table (Quotation & Customer Payment Tracking with Multi-payment Support)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id TEXT PRIMARY KEY,
+      organization_id TEXT NOT NULL,
+      quotation_id TEXT,
+      customer_id TEXT,
+      amount NUMERIC NOT NULL CHECK (amount > 0),
+      payment_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+      payment_method TEXT NOT NULL CHECK (payment_method IN ('Credit Card', 'Bank Transfer', 'Cash', 'Cheque', 'UPI', 'PayPal', 'Other')),
+      payment_status TEXT NOT NULL DEFAULT 'Completed' CHECK (payment_status IN ('Pending', 'Completed', 'Failed', 'Refunded')),
+      reference_number TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+    )
+  `);
+
+  // -------------------------------------------------------------
+  // Day 4 Indexes: Performance, Foreign Keys, Status, and Filtering
+  // -------------------------------------------------------------
+  // Customers indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_customers_org_id ON customers(organization_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_customers_status ON customers(status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)`);
+
+  // Quotations indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_quotations_org_id ON quotations(organization_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_quotations_customer_id ON quotations(customer_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_quotations_issue_date ON quotations(issue_date)`);
+
+  // Quotation Items indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_quotation_items_quote_id ON quotation_items(quotation_id)`);
+
+  // Tickets indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_org_id ON tickets(organization_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_customer_id ON tickets(customer_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_priority ON tickets(priority)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_tickets_assigned_to ON tickets(assigned_to)`);
+
+  // Ticket Comments indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket_id ON ticket_comments(ticket_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_ticket_comments_user_id ON ticket_comments(user_id)`);
+
+  // Ticket Attachments indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket_id ON ticket_attachments(ticket_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_ticket_attachments_comment_id ON ticket_attachments(comment_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_ticket_attachments_uploaded_by ON ticket_attachments(uploaded_by)`);
+
+  // Payments indexes
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_org_id ON payments(organization_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_quote_id ON payments(quotation_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_customer_id ON payments(customer_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(payment_status)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(payment_date)`);
 });
 
 /**
@@ -262,6 +436,46 @@ const autoSeedExistingOrganizations = async () => {
 
 setTimeout(autoSeedExistingOrganizations, 300);
 
+/**
+ * Server-side validated calculator for quotation line items and financial totals
+ */
+const calculateQuotationTotals = (items = []) => {
+  let subtotal = 0;
+  let taxTotal = 0;
+
+  const validatedItems = items.map((item) => {
+    const qty = Math.max(0.0001, Number(item.quantity) || 1);
+    const price = Math.max(0, Number(item.unit_price ?? item.unitPrice) || 0);
+    const taxRate = Math.max(0, Number(item.tax_rate ?? item.taxRate) || 0);
+
+    const lineTotal = Number((qty * price).toFixed(2));
+    const taxAmount = Number((lineTotal * (taxRate / 100)).toFixed(2));
+
+    subtotal += lineTotal;
+    taxTotal += taxAmount;
+
+    return {
+      description: String(item.description || "").trim(),
+      quantity: qty,
+      unit_price: price,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      line_total: lineTotal
+    };
+  });
+
+  subtotal = Number(subtotal.toFixed(2));
+  taxTotal = Number(taxTotal.toFixed(2));
+  const grandTotal = Number((subtotal + taxTotal).toFixed(2));
+
+  return {
+    items: validatedItems,
+    subtotal,
+    taxTotal,
+    grandTotal
+  };
+};
+
 module.exports = {
   db,
   run,
@@ -270,5 +484,6 @@ module.exports = {
   runTransaction,
   seedDefaultPipelineStages,
   DEFAULT_PIPELINE_STAGES,
-  generateId
+  generateId,
+  calculateQuotationTotals
 };
