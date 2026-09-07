@@ -51,6 +51,16 @@ const normalizeShortStage = (stage) => {
   return STAGE_DB_TO_SHORT[dbName] || "Lead";
 };
 
+// Formats display string so contact name is always visible
+const formatCustomerDisplay = (name, company) => {
+  const n = (name || "").trim();
+  const c = (company || "").trim();
+  if (n && c && n.toLowerCase() !== c.toLowerCase()) {
+    return `${n} (${c})`;
+  }
+  return n || c || "";
+};
+
 // In-memory mirrors
 let customers = [];
 let deals = [];
@@ -128,6 +138,16 @@ async function ensureDatabaseSeeded() {
         `INSERT OR IGNORE INTO leads (id, organization_id, name, email, phone, company, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [c.id, orgId, c.name, c.email, c.phone, c.company, c.type === "lead" ? c.status : "Active", c.createdAt, c.createdAt]
+      );
+    }
+
+    // 1.1 Mirror all existing leads into customers table (status: 'Active') so quotation & ticket foreign keys succeed
+    const allDbLeads = await all("SELECT id, organization_id, name, email, phone, company, created_at FROM leads");
+    for (const l of allDbLeads) {
+      await run(
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, null, 'Active', ?, ?)`,
+        [l.id, l.organization_id || orgId, l.name, l.email || null, l.phone || null, l.company || null, l.created_at, l.created_at]
       );
     }
 
@@ -558,7 +578,8 @@ const dealStore = {
     try {
       const dbDeals = await all(`
         SELECT d.*, 
-               COALESCE(c.company, c.name, l.company, l.name, '') as client_name,
+               COALESCE(c.name, l.name, '') as client_name,
+               COALESCE(c.company, l.company, '') as client_company,
                s.name as stage_name
         FROM deals d
         LEFT JOIN customers c ON d.lead_id = c.id
@@ -571,7 +592,7 @@ const dealStore = {
         id: d.id,
         title: d.title,
         customerId: d.lead_id || "",
-        customerName: d.client_name || "",
+        customerName: formatCustomerDisplay(d.client_name, d.client_company),
         value: Number(d.value) || 0,
         stage: d.stage_name || "Lead In",
         expectedCloseDate: d.expected_close_date || "",
@@ -588,7 +609,8 @@ const dealStore = {
     await ensureDatabaseSeeded();
     let query = `
       SELECT d.*, 
-             COALESCE(c.company, c.name, l.company, l.name, '') as client_name,
+             COALESCE(c.name, l.name, '') as client_name,
+             COALESCE(c.company, l.company, '') as client_company,
              s.name as stage_name
       FROM deals d
       LEFT JOIN customers c ON d.lead_id = c.id
@@ -614,7 +636,7 @@ const dealStore = {
       id: d.id,
       title: d.title,
       customerId: d.lead_id || "",
-      customerName: d.client_name || "",
+      customerName: formatCustomerDisplay(d.client_name, d.client_company),
       value: Number(d.value) || 0,
       stage: d.stage_name || "Lead In",
       expectedCloseDate: d.expected_close_date || "",
@@ -631,7 +653,8 @@ const dealStore = {
     await ensureDatabaseSeeded();
     const row = await get(
       `SELECT d.*, 
-              COALESCE(c.company, c.name, l.company, l.name, '') as client_name,
+              COALESCE(c.name, l.name, '') as client_name,
+              COALESCE(c.company, l.company, '') as client_company,
               s.name as stage_name
        FROM deals d
        LEFT JOIN customers c ON d.lead_id = c.id
@@ -645,7 +668,7 @@ const dealStore = {
       id: row.id,
       title: row.title,
       customerId: row.lead_id || "",
-      customerName: row.client_name || "",
+      customerName: formatCustomerDisplay(row.client_name, row.client_company),
       value: Number(row.value) || 0,
       stage: row.stage_name || "Lead In",
       expectedCloseDate: row.expected_close_date || "",
@@ -834,7 +857,9 @@ const quotationStore = {
     await ensureDatabaseSeeded();
     try {
       const dbQuotes = await all(`
-        SELECT q.*, COALESCE(c.company, c.name, '') as customer_name
+        SELECT q.*, 
+               c.name as cust_name,
+               c.company as cust_company
         FROM quotations q
         LEFT JOIN customers c ON q.customer_id = c.id
         ORDER BY q.created_at DESC
@@ -850,7 +875,7 @@ const quotationStore = {
           id: q.id,
           quoteNumber: q.quote_number,
           customerId: q.customer_id,
-          customerName: q.customer_name || "",
+          customerName: formatCustomerDisplay(q.cust_name, q.cust_company),
           items: items.map(i => ({
             id: i.id,
             description: i.description,
@@ -881,7 +906,9 @@ const quotationStore = {
   async getAll({ status = "", customerId = "" } = {}) {
     await ensureDatabaseSeeded();
     let query = `
-      SELECT q.*, COALESCE(c.company, c.name, '') as customer_name
+      SELECT q.*, 
+             c.name as cust_name,
+             c.company as cust_company
       FROM quotations q
       LEFT JOIN customers c ON q.customer_id = c.id
       WHERE 1=1
@@ -909,7 +936,7 @@ const quotationStore = {
         id: q.id,
         quoteNumber: q.quote_number,
         customerId: q.customer_id,
-        customerName: q.customer_name || "",
+        customerName: formatCustomerDisplay(q.cust_name, q.cust_company),
         items: items.map(i => ({
           id: i.id,
           description: i.description,
@@ -939,7 +966,9 @@ const quotationStore = {
     await ensureDatabaseSeeded();
     // Resolve by canonical id or fallback by quote_number
     let q = await get(
-      `SELECT q.*, COALESCE(c.company, c.name, '') as customer_name
+      `SELECT q.*, 
+              c.name as cust_name,
+              c.company as cust_company
        FROM quotations q
        LEFT JOIN customers c ON q.customer_id = c.id
        WHERE q.id = ?`,
@@ -948,7 +977,9 @@ const quotationStore = {
 
     if (!q) {
       q = await get(
-        `SELECT q.*, COALESCE(c.company, c.name, '') as customer_name
+        `SELECT q.*, 
+                c.name as cust_name,
+                c.company as cust_company
          FROM quotations q
          LEFT JOIN customers c ON q.customer_id = c.id
          WHERE q.quote_number = ?`,
@@ -967,7 +998,7 @@ const quotationStore = {
       id: q.id,
       quoteNumber: q.quote_number,
       customerId: q.customer_id,
-      customerName: q.customer_name || "",
+      customerName: formatCustomerDisplay(q.cust_name, q.cust_company),
       items: items.map(i => ({
         id: i.id,
         description: i.description,
@@ -1148,7 +1179,8 @@ const ticketStore = {
     try {
       const dbTickets = await all(`
         SELECT t.*, 
-               COALESCE(c.company, c.name, '') as customer_name,
+               c.name as cust_name,
+               c.company as cust_company,
                COALESCE(u.name, 'Support Team') as assigned_name
         FROM tickets t
         LEFT JOIN customers c ON t.customer_id = c.id
@@ -1170,7 +1202,7 @@ const ticketStore = {
           id: t.id,
           ticketNumber: t.ticket_number,
           customerId: t.customer_id || "",
-          customerName: t.customer_name || "",
+          customerName: formatCustomerDisplay(t.cust_name, t.cust_company),
           title: t.title,
           description: t.description,
           priority: t.priority,
@@ -1197,7 +1229,8 @@ const ticketStore = {
     await ensureDatabaseSeeded();
     let query = `
       SELECT t.*, 
-             COALESCE(c.company, c.name, '') as customer_name,
+             c.name as cust_name,
+             c.company as cust_company,
              COALESCE(u.name, 'Support Team') as assigned_name
       FROM tickets t
       LEFT JOIN customers c ON t.customer_id = c.id
@@ -1235,7 +1268,7 @@ const ticketStore = {
         id: t.id,
         ticketNumber: t.ticket_number,
         customerId: t.customer_id || "",
-        customerName: t.customer_name || "",
+        customerName: formatCustomerDisplay(t.cust_name, t.cust_company),
         title: t.title,
         description: t.description,
         priority: t.priority,
@@ -1260,7 +1293,8 @@ const ticketStore = {
     await ensureDatabaseSeeded();
     let t = await get(
       `SELECT t.*, 
-              COALESCE(c.company, c.name, '') as customer_name,
+              c.name as cust_name,
+              c.company as cust_company,
               COALESCE(u.name, 'Support Team') as assigned_name
        FROM tickets t
        LEFT JOIN customers c ON t.customer_id = c.id
@@ -1272,7 +1306,8 @@ const ticketStore = {
     if (!t) {
       t = await get(
         `SELECT t.*, 
-                COALESCE(c.company, c.name, '') as customer_name,
+                c.name as cust_name,
+                c.company as cust_company,
                 COALESCE(u.name, 'Support Team') as assigned_name
          FROM tickets t
          LEFT JOIN customers c ON t.customer_id = c.id
@@ -1297,7 +1332,7 @@ const ticketStore = {
       id: t.id,
       ticketNumber: t.ticket_number,
       customerId: t.customer_id || "",
-      customerName: t.customer_name || "",
+      customerName: formatCustomerDisplay(t.cust_name, t.cust_company),
       title: t.title,
       description: t.description,
       priority: t.priority,
