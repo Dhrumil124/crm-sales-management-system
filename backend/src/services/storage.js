@@ -228,12 +228,120 @@ let tickets = [
 const generateId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
 let nextQuoteNumber = 1004;
 let nextTicketNumber = 1004;
+let isDbInitialized = false;
+
+/**
+ * Ensures all seed contacts, initial tickets, and initial quotations
+ * exist in SQLite crm.sqlite so that all foreign keys (customer_id, etc.)
+ * are 100% satisfied and never fail or vanish on server reload.
+ */
+async function ensureDatabaseSeeded() {
+  if (isDbInitialized) return;
+  try {
+    const { all, run } = require("../database/db");
+    const orgs = await all("SELECT id FROM organizations LIMIT 1");
+    if (!orgs || orgs.length === 0) return;
+    const orgId = orgs[0].id;
+
+    // 1. Seed initial in-memory customers into SQLite `customers` table
+    for (const c of customers) {
+      await run(
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          c.id,
+          orgId,
+          c.name,
+          c.email || null,
+          c.phone || null,
+          c.company || null,
+          c.notes || null,
+          c.type === "lead" ? "Lead" : (c.status || "Active"),
+          c.createdAt,
+          c.createdAt
+        ]
+      );
+    }
+
+    // 2. Mirror all existing leads into `customers` table with status 'Lead'
+    // so any ticket or quote created for a lead satisfies foreign key constraints
+    const existingLeads = await all("SELECT id, name, email, phone, company, status, created_at FROM leads WHERE organization_id = ?", [orgId]);
+    for (const l of existingLeads) {
+      await run(
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [l.id, orgId, l.name, l.email || null, l.phone || null, l.company || null, null, "Lead", l.created_at, l.created_at]
+      );
+    }
+
+    // 3. Seed initial in-memory tickets into SQLite `tickets` table
+    for (const t of tickets) {
+      const custCheck = t.customerId ? await all("SELECT id FROM customers WHERE id = ?", [t.customerId]) : [];
+      const validCustId = custCheck.length > 0 ? t.customerId : null;
+      
+      const existingTicket = await all("SELECT id FROM tickets WHERE ticket_number = ? OR id = ?", [t.ticketNumber, t.id]);
+      let targetTicketId = t.id;
+
+      if (existingTicket.length === 0) {
+        await run(
+          `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [t.id, orgId, t.ticketNumber, validCustId, t.title, t.description, t.priority, t.status, t.createdAt, t.createdAt]
+        );
+      } else {
+        targetTicketId = existingTicket[0].id;
+      }
+
+      for (const comm of (t.comments || [])) {
+        await run(
+          `INSERT OR IGNORE INTO ticket_comments (id, ticket_id, comment, created_at)
+           VALUES (?, ?, ?, ?)`,
+          [comm.id, targetTicketId, comm.text, comm.createdAt]
+        );
+      }
+    }
+
+    // 4. Seed initial in-memory quotations into SQLite `quotations` table
+    for (const q of quotations) {
+      const custCheck = q.customerId ? await all("SELECT id FROM customers WHERE id = ?", [q.customerId]) : [];
+      const validCustId = custCheck.length > 0 ? q.customerId : null;
+
+      const existingQuote = await all("SELECT id FROM quotations WHERE quote_number = ? OR id = ?", [q.quoteNumber, q.id]);
+      let targetQuoteId = q.id;
+
+      if (existingQuote.length === 0) {
+        await run(
+          `INSERT INTO quotations (id, organization_id, quote_number, customer_id, issue_date, valid_until, status, subtotal, tax_total, grand_total, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [q.id, orgId, q.quoteNumber, validCustId, q.issueDate, q.validUntil, q.status, q.subtotal, q.taxTotal, q.grandTotal, q.createdAt, q.createdAt]
+        );
+        for (const itm of (q.items || [])) {
+          const itmId = generateId("item");
+          const itmTax = Number((itm.lineTotal * (itm.taxRate / 100)).toFixed(2));
+          await run(
+            `INSERT OR IGNORE INTO quotation_items (id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [itmId, q.id, itm.description, itm.quantity, itm.unitPrice, itm.taxRate, itmTax, itm.lineTotal, q.createdAt]
+          );
+        }
+      }
+    }
+
+    isDbInitialized = true;
+  } catch (err) {
+    console.error("ensureDatabaseSeeded error:", err);
+  }
+}
+
+// Automatically seed on load
+setTimeout(ensureDatabaseSeeded, 150);
 
 // -------------------------------------------------------------
 // CRM (Customers & Leads) Storage Interface
 // -------------------------------------------------------------
 const customerStore = {
   async syncFromDatabase() {
+    await ensureDatabaseSeeded();
     try {
       const { all } = require("../database/db");
       const dbLeads = await all(
@@ -273,8 +381,8 @@ const customerStore = {
             email: cu.email || "",
             phone: cu.phone || "",
             company: cu.company || "",
-            type: "customer",
-            status: cu.status || "Active",
+            type: cu.status === "Lead" ? "lead" : "customer",
+            status: cu.status === "Lead" ? "New" : (cu.status || "Active"),
             notes: cu.address || "",
             createdAt: cu.created_at || new Date().toISOString()
           });
@@ -312,6 +420,7 @@ const customerStore = {
   },
 
   async create(data) {
+    await ensureDatabaseSeeded();
     const newCustomer = {
       id: generateId("cust"),
       name: data.name,
@@ -354,26 +463,27 @@ const customerStore = {
             [`note-${Date.now()}`, newCustomer.id, newCustomer.notes, newCustomer.createdAt, newCustomer.createdAt]
           );
         }
-      } else {
-        await run(
-          `INSERT INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            newCustomer.id,
-            orgId,
-            newCustomer.name,
-            newCustomer.email,
-            newCustomer.phone,
-            newCustomer.company,
-            newCustomer.notes,
-            newCustomer.status,
-            newCustomer.createdAt,
-            newCustomer.createdAt
-          ]
-        );
       }
-    } catch {
-      // Gracefully proceed if DB write is deferred
+
+      // Always mirror into SQLite customers table so tickets and quotes can foreign-key link to it
+      await run(
+        `INSERT OR REPLACE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newCustomer.id,
+          orgId,
+          newCustomer.name,
+          newCustomer.email,
+          newCustomer.phone,
+          newCustomer.company,
+          newCustomer.notes,
+          newCustomer.type === "lead" ? "Lead" : newCustomer.status,
+          newCustomer.createdAt,
+          newCustomer.createdAt
+        ]
+      );
+    } catch (err) {
+      console.error("Failed to persist contact to SQLite:", err);
     }
 
     return newCustomer;
@@ -614,40 +724,48 @@ const dealStore = {
 // -------------------------------------------------------------
 const quotationStore = {
   async syncFromDatabase() {
+    await ensureDatabaseSeeded();
     try {
       const { all } = require("../database/db");
       const dbQuotes = await all(`
-        SELECT q.*, c.name as cust_name, c.company as cust_company
+        SELECT q.*, COALESCE(c.company, c.name, '') as cust_display
         FROM quotations q
         LEFT JOIN customers c ON q.customer_id = c.id
+        ORDER BY q.created_at DESC
       `);
       for (const q of dbQuotes) {
-        const exists = quotations.some(quote => quote.id === q.id || quote.quoteNumber === q.quote_number);
-        if (!exists) {
-          const items = await all("SELECT * FROM quotation_items WHERE quotation_id = ?", [q.id]);
-          quotations.push({
-            id: q.id,
-            quoteNumber: q.quote_number,
-            customerId: q.customer_id,
-            customerName: q.cust_company || q.cust_name || "",
-            items: items.map(i => ({
-              description: i.description,
-              quantity: i.quantity,
-              unitPrice: i.unit_price,
-              taxRate: i.tax_rate,
-              lineTotal: i.line_total
-            })),
-            subtotal: q.subtotal,
-            taxTotal: q.tax_total,
-            grandTotal: q.grand_total,
-            status: q.status,
-            issueDate: q.issue_date,
-            validUntil: q.valid_until,
-            createdAt: q.created_at || new Date().toISOString()
-          });
+        const items = await all("SELECT * FROM quotation_items WHERE quotation_id = ?", [q.id]);
+        const mappedQuote = {
+          id: q.id,
+          quoteNumber: q.quote_number,
+          customerId: q.customer_id || "",
+          customerName: q.cust_display || "",
+          items: items.map(i => ({
+            description: i.description,
+            quantity: i.quantity,
+            unitPrice: i.unit_price,
+            taxRate: i.tax_rate,
+            lineTotal: i.line_total
+          })),
+          subtotal: q.subtotal,
+          taxTotal: q.tax_total,
+          grandTotal: q.grand_total,
+          status: q.status,
+          issueDate: q.issue_date,
+          validUntil: q.valid_until,
+          createdAt: q.created_at || new Date().toISOString()
+        };
+
+        const existingIdx = quotations.findIndex(quote => quote.id === q.id || quote.quoteNumber === q.quote_number);
+        if (existingIdx >= 0) {
+          quotations[existingIdx] = { ...quotations[existingIdx], ...mappedQuote };
+        } else {
+          quotations.push(mappedQuote);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error("quotationStore.syncFromDatabase error:", err);
+    }
   },
 
   async getAll({ status = "", customerId = "" } = {}) {
@@ -704,20 +822,51 @@ const quotationStore = {
   },
 
   async create(data) {
+    await ensureDatabaseSeeded();
+    const { run, all } = require("../database/db");
+    const org = await all("SELECT id FROM organizations LIMIT 1");
+    const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+
     let customerName = data.customerName || "";
-    if (data.customerId && !customerName) {
-      const customer = await customerStore.getById(data.customerId);
-      if (customer) {
-        customerName = customer.company || customer.name;
+    let validCustomerId = null;
+
+    if (data.customerId) {
+      const cust = await all("SELECT id, name, company FROM customers WHERE id = ?", [data.customerId]);
+      if (cust.length > 0) {
+        validCustomerId = cust[0].id;
+        customerName = customerName || cust[0].company || cust[0].name;
+      } else {
+        const lead = await all("SELECT id, name, company, email, phone FROM leads WHERE id = ?", [data.customerId]);
+        if (lead.length > 0) {
+          await run(
+            `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [lead[0].id, orgId, lead[0].name, lead[0].email || null, lead[0].phone || null, lead[0].company || null, null, "Lead"]
+          );
+          validCustomerId = lead[0].id;
+          customerName = customerName || lead[0].company || lead[0].name;
+        }
       }
     }
 
     const { items, subtotal, taxTotal, grandTotal } = this.calculateTotals(data.items);
 
+    const maxQuote = await all("SELECT quote_number FROM quotations ORDER BY rowid DESC LIMIT 1");
+    let quoteNumSeq = nextQuoteNumber++;
+    if (maxQuote.length > 0 && maxQuote[0].quote_number) {
+      const match = maxQuote[0].quote_number.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num >= quoteNumSeq) {
+          quoteNumSeq = num + 1;
+        }
+      }
+    }
+
     const newQuotation = {
       id: generateId("quote"),
-      quoteNumber: `QT-${nextQuoteNumber++}`,
-      customerId: data.customerId || "",
+      quoteNumber: `QT-${quoteNumSeq}`,
+      customerId: validCustomerId || "",
       customerName: customerName,
       items,
       subtotal,
@@ -729,59 +878,49 @@ const quotationStore = {
       createdAt: new Date().toISOString()
     };
 
-    quotations.unshift(newQuotation);
+    // Insert into SQLite quotations table
+    await run(
+      `INSERT INTO quotations (id, organization_id, quote_number, customer_id, issue_date, valid_until, status, subtotal, tax_total, grand_total, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newQuotation.id, orgId, newQuotation.quoteNumber, validCustomerId, newQuotation.issueDate, newQuotation.validUntil, newQuotation.status, subtotal, taxTotal, grandTotal, newQuotation.createdAt, newQuotation.createdAt]
+    );
 
-    // Persist to SQLite quotations & quotation_items tables
-    try {
-      const { run, all } = require("../database/db");
-      const org = await all("SELECT id FROM organizations LIMIT 1");
-      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
-
+    for (const itm of items) {
+      const itmId = generateId("item");
+      const itmTax = Number((itm.lineTotal * (itm.taxRate / 100)).toFixed(2));
       await run(
-        `INSERT INTO quotations (id, organization_id, quote_number, customer_id, issue_date, valid_until, status, subtotal, tax_total, grand_total, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newQuotation.id, orgId, newQuotation.quoteNumber, newQuotation.customerId, newQuotation.issueDate, newQuotation.validUntil, newQuotation.status, subtotal, taxTotal, grandTotal, newQuotation.createdAt, newQuotation.createdAt]
+        `INSERT INTO quotation_items (id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [itmId, newQuotation.id, itm.description, itm.quantity, itm.unitPrice, itm.taxRate, itmTax, itm.lineTotal, newQuotation.createdAt]
       );
+    }
 
-      for (const itm of items) {
-        const itmId = generateId("item");
-        const itmTax = Number((itm.lineTotal * (itm.taxRate / 100)).toFixed(2));
-        await run(
-          `INSERT INTO quotation_items (id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [itmId, newQuotation.id, itm.description, itm.quantity, itm.unitPrice, itm.taxRate, itmTax, itm.lineTotal, newQuotation.createdAt]
-        );
-      }
-    } catch {}
-
+    await this.syncFromDatabase();
     return newQuotation;
   },
 
   async updateStatus(id, status) {
     await this.syncFromDatabase();
+    const { run } = require("../database/db");
+    await run(`UPDATE quotations SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
+
     const index = quotations.findIndex(q => q.id === id);
-    if (index === -1) return null;
-    quotations[index].status = status;
-
-    try {
-      const { run } = require("../database/db");
-      await run(`UPDATE quotations SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
-    } catch {}
-
-    return quotations[index];
+    if (index !== -1) {
+      quotations[index].status = status;
+    }
+    await this.syncFromDatabase();
+    return quotations.find(q => q.id === id) || null;
   },
 
   async delete(id) {
     await this.syncFromDatabase();
+    const { run } = require("../database/db");
+    await run(`DELETE FROM quotations WHERE id = ?`, [id]);
+
     const index = quotations.findIndex(q => q.id === id);
-    if (index === -1) return false;
-    quotations.splice(index, 1);
-
-    try {
-      const { run } = require("../database/db");
-      await run(`DELETE FROM quotations WHERE id = ?`, [id]);
-    } catch {}
-
+    if (index !== -1) {
+      quotations.splice(index, 1);
+    }
     return true;
   }
 };
@@ -791,42 +930,58 @@ const quotationStore = {
 // -------------------------------------------------------------
 const ticketStore = {
   async syncFromDatabase() {
+    await ensureDatabaseSeeded();
     try {
       const { all } = require("../database/db");
       const dbTickets = await all(`
-        SELECT t.*, c.name as cust_name, c.company as cust_company, u.name as user_name
+        SELECT t.*, 
+               COALESCE(c.company, c.name, '') as cust_display,
+               COALESCE(u.name, 'Support Team') as user_name
         FROM tickets t
         LEFT JOIN customers c ON t.customer_id = c.id
         LEFT JOIN users u ON t.assigned_to = u.id
+        ORDER BY t.created_at DESC
       `);
+
       for (const t of dbTickets) {
-        const exists = tickets.some(tck => tck.id === t.id || tck.ticketNumber === t.ticket_number);
-        if (!exists) {
-          const comments = await all(
-            "SELECT tc.*, u.name as author_name FROM ticket_comments tc LEFT JOIN users u ON tc.user_id = u.id WHERE tc.ticket_id = ?",
-            [t.id]
-          );
-          tickets.push({
-            id: t.id,
-            ticketNumber: t.ticket_number,
-            customerId: t.customer_id,
-            customerName: t.cust_company || t.cust_name || "",
-            title: t.title,
-            description: t.description,
-            priority: t.priority,
-            status: t.status,
-            assignedTo: t.user_name || "Support Team",
-            comments: comments.map(c => ({
-              id: c.id,
-              author: c.author_name || "Staff",
-              text: c.comment,
-              createdAt: c.created_at
-            })),
-            createdAt: t.created_at || new Date().toISOString()
-          });
+        const comments = await all(
+          `SELECT tc.*, COALESCE(u.name, 'Staff') as author_name 
+           FROM ticket_comments tc 
+           LEFT JOIN users u ON tc.user_id = u.id 
+           WHERE tc.ticket_id = ? 
+           ORDER BY tc.created_at ASC`,
+          [t.id]
+        );
+
+        const mappedTicket = {
+          id: t.id,
+          ticketNumber: t.ticket_number,
+          customerId: t.customer_id || "",
+          customerName: t.cust_display || "",
+          title: t.title,
+          description: t.description,
+          priority: t.priority,
+          status: t.status,
+          assignedTo: t.user_name || "Support Team",
+          comments: comments.map(c => ({
+            id: c.id,
+            author: c.author_name || "Staff",
+            text: c.comment,
+            createdAt: c.created_at
+          })),
+          createdAt: t.created_at || new Date().toISOString()
+        };
+
+        const existingIdx = tickets.findIndex(tck => tck.id === t.id || tck.ticketNumber === t.ticket_number);
+        if (existingIdx >= 0) {
+          tickets[existingIdx] = { ...tickets[existingIdx], ...mappedTicket };
+        } else {
+          tickets.push(mappedTicket);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error("ticketStore.syncFromDatabase error:", err);
+    }
   },
 
   async getAll({ status = "", priority = "", customerId = "" } = {}) {
@@ -850,18 +1005,49 @@ const ticketStore = {
   },
 
   async create(data) {
+    await ensureDatabaseSeeded();
+    const { run, all } = require("../database/db");
+    const org = await all("SELECT id FROM organizations LIMIT 1");
+    const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+
     let customerName = data.customerName || "";
-    if (data.customerId && !customerName) {
-      const customer = await customerStore.getById(data.customerId);
-      if (customer) {
-        customerName = customer.company || customer.name;
+    let validCustomerId = null;
+
+    if (data.customerId) {
+      const cust = await all("SELECT id, name, company FROM customers WHERE id = ?", [data.customerId]);
+      if (cust.length > 0) {
+        validCustomerId = cust[0].id;
+        customerName = customerName || cust[0].company || cust[0].name;
+      } else {
+        const lead = await all("SELECT id, name, company, email, phone FROM leads WHERE id = ?", [data.customerId]);
+        if (lead.length > 0) {
+          await run(
+            `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [lead[0].id, orgId, lead[0].name, lead[0].email || null, lead[0].phone || null, lead[0].company || null, null, "Lead"]
+          );
+          validCustomerId = lead[0].id;
+          customerName = customerName || lead[0].company || lead[0].name;
+        }
+      }
+    }
+
+    const maxTicket = await all("SELECT ticket_number FROM tickets ORDER BY rowid DESC LIMIT 1");
+    let ticketNumSeq = nextTicketNumber++;
+    if (maxTicket.length > 0 && maxTicket[0].ticket_number) {
+      const match = maxTicket[0].ticket_number.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num >= ticketNumSeq) {
+          ticketNumSeq = num + 1;
+        }
       }
     }
 
     const newTicket = {
       id: generateId("tck"),
-      ticketNumber: `TCK-${nextTicketNumber++}`,
-      customerId: data.customerId || "",
+      ticketNumber: `TCK-${ticketNumSeq}`,
+      customerId: validCustomerId || "",
       customerName: customerName,
       title: String(data.title || "").trim(),
       description: String(data.description || "").trim(),
@@ -872,75 +1058,78 @@ const ticketStore = {
       createdAt: new Date().toISOString()
     };
 
-    tickets.unshift(newTicket);
+    let assignedUserId = null;
+    if (newTicket.assignedTo && newTicket.assignedTo !== "Unassigned" && newTicket.assignedTo !== "Support Team") {
+      const user = await all("SELECT id FROM users WHERE name = ? OR id = ? LIMIT 1", [newTicket.assignedTo, newTicket.assignedTo]);
+      if (user.length > 0) {
+        assignedUserId = user[0].id;
+      }
+    }
 
-    // Persist to SQLite tickets table
-    try {
-      const { run, all } = require("../database/db");
-      const org = await all("SELECT id FROM organizations LIMIT 1");
-      const orgId = org[0]?.id || "org-mtnwl7km-s2wh5";
+    // Persist directly into SQLite tickets table
+    await run(
+      `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, assigned_to, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        newTicket.id,
+        orgId,
+        newTicket.ticketNumber,
+        validCustomerId,
+        newTicket.title,
+        newTicket.description,
+        newTicket.priority,
+        newTicket.status,
+        assignedUserId,
+        newTicket.createdAt,
+        newTicket.createdAt
+      ]
+    );
 
-      await run(
-        `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newTicket.id, orgId, newTicket.ticketNumber, newTicket.customerId || null, newTicket.title, newTicket.description, newTicket.priority, newTicket.status, newTicket.createdAt, newTicket.createdAt]
-      );
-    } catch {}
-
-    return newTicket;
+    await this.syncFromDatabase();
+    return tickets.find(t => t.id === newTicket.id) || newTicket;
   },
 
   async updateStatus(id, status) {
     await this.syncFromDatabase();
+    const { run } = require("../database/db");
+    await run(`UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
+
     const index = tickets.findIndex(t => t.id === id);
-    if (index === -1) return null;
-    tickets[index].status = status;
-
-    try {
-      const { run } = require("../database/db");
-      await run(`UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?`, [status, new Date().toISOString(), id]);
-    } catch {}
-
-    return tickets[index];
+    if (index !== -1) {
+      tickets[index].status = status;
+    }
+    await this.syncFromDatabase();
+    return tickets.find(t => t.id === id) || null;
   },
 
   async addComment(id, { author = "Staff", text }) {
     await this.syncFromDatabase();
-    const index = tickets.findIndex(t => t.id === id);
-    if (index === -1) return null;
+    const { run, all } = require("../database/db");
+    const commentId = generateId("comm");
+    const now = new Date().toISOString();
 
-    const newComment = {
-      id: generateId("comm"),
-      author: String(author || "Staff").trim(),
-      text: String(text || "").trim(),
-      createdAt: new Date().toISOString()
-    };
+    const user = await all("SELECT id FROM users WHERE name = ? LIMIT 1", [author]);
+    const userId = user.length > 0 ? user[0].id : null;
 
-    tickets[index].comments.push(newComment);
+    await run(
+      `INSERT INTO ticket_comments (id, ticket_id, user_id, comment, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [commentId, id, userId, text, now]
+    );
 
-    try {
-      const { run } = require("../database/db");
-      await run(
-        `INSERT INTO ticket_comments (id, ticket_id, comment, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [newComment.id, id, newComment.text, newComment.createdAt, newComment.createdAt]
-      );
-    } catch {}
-
-    return tickets[index];
+    await this.syncFromDatabase();
+    return tickets.find(t => t.id === id) || null;
   },
 
   async delete(id) {
     await this.syncFromDatabase();
+    const { run } = require("../database/db");
+    await run(`DELETE FROM tickets WHERE id = ?`, [id]);
+
     const index = tickets.findIndex(t => t.id === id);
-    if (index === -1) return false;
-    tickets.splice(index, 1);
-
-    try {
-      const { run } = require("../database/db");
-      await run(`DELETE FROM tickets WHERE id = ?`, [id]);
-    } catch {}
-
+    if (index !== -1) {
+      tickets.splice(index, 1);
+    }
     return true;
   }
 };
