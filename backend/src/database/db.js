@@ -185,11 +185,16 @@ db.serialize(() => {
       company TEXT,
       address TEXT,
       status TEXT NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Pending', 'Archived')),
+      contact_type TEXT NOT NULL DEFAULT 'customer',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
     )
   `);
+
+  // Migration for existing tables: add contact_type column if not present
+  db.run(`ALTER TABLE customers ADD COLUMN contact_type TEXT DEFAULT 'customer'`, () => {});
+
 
   // 2. Quotations Table (Organization-Aware Unique Quotes with Financial Totals)
   db.run(`

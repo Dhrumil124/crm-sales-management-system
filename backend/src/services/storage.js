@@ -130,9 +130,13 @@ async function ensureDatabaseSeeded() {
 
     for (const c of initialContacts) {
       await run(
-        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [c.id, orgId, c.name, c.email, c.phone, c.company, c.notes, "Active", c.createdAt, c.createdAt]
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, contact_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [c.id, orgId, c.name, c.email, c.phone, c.company, c.notes, "Active", c.type, c.createdAt, c.createdAt]
+      );
+      await run(
+        `UPDATE customers SET contact_type = ? WHERE id = ?`,
+        [c.type, c.id]
       );
       await run(
         `INSERT OR IGNORE INTO leads (id, organization_id, name, email, phone, company, status, created_at, updated_at)
@@ -141,15 +145,19 @@ async function ensureDatabaseSeeded() {
       );
     }
 
-    // 1.1 Mirror all existing leads into customers table (status: 'Active') so quotation & ticket foreign keys succeed
-    const allDbLeads = await all("SELECT id, organization_id, name, email, phone, company, created_at FROM leads");
+    // 1.1 Mirror all existing leads into customers table so quotation & ticket foreign keys succeed
+    const allDbLeads = await all("SELECT id, organization_id, name, email, phone, company, status, created_at FROM leads");
     for (const l of allDbLeads) {
       await run(
-        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, null, 'Active', ?, ?)`,
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, contact_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, null, 'Active', 'lead', ?, ?)`,
         [l.id, l.organization_id || orgId, l.name, l.email || null, l.phone || null, l.company || null, l.created_at, l.created_at]
       );
+      if (l.id !== "cust-1" && l.id !== "cust-2" && l.status !== "Converted") {
+        await run(`UPDATE customers SET contact_type = 'lead' WHERE id = ?`, [l.id]);
+      }
     }
+
 
     // 2. Ensure default pipeline stages exist
     const dbStages = await all(
@@ -365,23 +373,46 @@ const customerStore = {
          ORDER BY l.created_at DESC`
       );
 
+      const leadMap = new Map();
+      for (const l of dbLeads) {
+        leadMap.set(l.id, l);
+      }
+
       const combined = [];
       const seenIds = new Set();
 
-      // Add customers
       for (const cu of dbCustomers) {
         seenIds.add(cu.id);
-        combined.push({
-          id: cu.id,
-          name: cu.name,
-          email: cu.email || "",
-          phone: cu.phone || "",
-          company: cu.company || "",
-          type: "customer",
-          status: cu.status || "Active",
-          notes: cu.address || "",
-          createdAt: cu.created_at || new Date().toISOString()
-        });
+        const l = leadMap.get(cu.id);
+        const isLead =
+          cu.contact_type === "lead" ||
+          (!cu.contact_type && l && cu.id !== "cust-1" && cu.id !== "cust-2" && l.status !== "Converted");
+
+        if (isLead && l) {
+          combined.push({
+            id: cu.id,
+            name: l.name || cu.name,
+            email: l.email || cu.email || "",
+            phone: l.phone || cu.phone || "",
+            company: l.company || cu.company || "",
+            type: "lead",
+            status: l.status || "New",
+            notes: l.note || cu.address || "",
+            createdAt: l.created_at || cu.created_at || new Date().toISOString()
+          });
+        } else {
+          combined.push({
+            id: cu.id,
+            name: cu.name,
+            email: cu.email || "",
+            phone: cu.phone || "",
+            company: cu.company || "",
+            type: "customer",
+            status: cu.status || "Active",
+            notes: cu.address || "",
+            createdAt: cu.created_at || new Date().toISOString()
+          });
+        }
       }
 
       // Add leads that aren't already represented as customers
@@ -432,6 +463,33 @@ const customerStore = {
   async getById(id) {
     await ensureDatabaseSeeded();
     const cust = await get("SELECT * FROM customers WHERE id = ?", [id]);
+    const lead = await get(
+      `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note
+       FROM leads l WHERE l.id = ?`,
+      [id]
+    );
+
+    if (!cust && !lead) return null;
+
+    const isLead =
+      (cust && cust.contact_type === "lead") ||
+      (!cust && lead) ||
+      (cust && !cust.contact_type && lead && id !== "cust-1" && id !== "cust-2" && lead.status !== "Converted");
+
+    if (isLead && lead) {
+      return {
+        id: lead.id,
+        name: lead.name || (cust ? cust.name : ""),
+        email: lead.email || (cust ? cust.email : "") || "",
+        phone: lead.phone || (cust ? cust.phone : "") || "",
+        company: lead.company || (cust ? cust.company : "") || "",
+        type: "lead",
+        status: lead.status || "New",
+        notes: lead.note || (cust ? cust.address : "") || "",
+        createdAt: lead.created_at || (cust ? cust.created_at : new Date().toISOString())
+      };
+    }
+
     if (cust) {
       return {
         id: cust.id,
@@ -445,25 +503,18 @@ const customerStore = {
         createdAt: cust.created_at
       };
     }
-    const lead = await get(
-      `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note
-       FROM leads l WHERE l.id = ?`,
-      [id]
-    );
-    if (lead) {
-      return {
-        id: lead.id,
-        name: lead.name,
-        email: lead.email || "",
-        phone: lead.phone || "",
-        company: lead.company || "",
-        type: "lead",
-        status: lead.status || "New",
-        notes: lead.note || "",
-        createdAt: lead.created_at
-      };
-    }
-    return null;
+
+    return {
+      id: lead.id,
+      name: lead.name,
+      email: lead.email || "",
+      phone: lead.phone || "",
+      company: lead.company || "",
+      type: "lead",
+      status: lead.status || "New",
+      notes: lead.note || "",
+      createdAt: lead.created_at
+    };
   },
 
   async create(data) {
@@ -480,8 +531,8 @@ const customerStore = {
         ? data.status
         : "Active";
       await run(
-        `INSERT INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO customers (id, organization_id, name, email, phone, company, address, status, contact_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'customer', ?, ?)`,
         [newId, orgId, data.name.trim(), data.email ? data.email.trim() : null, data.phone || null, data.company || null, data.notes || null, status, now, now]
       );
     } else {
@@ -493,11 +544,11 @@ const customerStore = {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [newId, orgId, data.name.trim(), data.email ? data.email.trim() : null, data.phone || null, data.company || null, status, now, now]
       );
-      // Mirror to customers table so quotation/ticket foreign keys succeed
+      // Mirror to customers table with contact_type = 'lead' so quotation/ticket foreign keys succeed
       await run(
-        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newId, orgId, data.name.trim(), data.email ? data.email.trim() : null, data.phone || null, data.company || null, data.notes || null, "Active", now, now]
+        `INSERT OR IGNORE INTO customers (id, organization_id, name, email, phone, company, address, status, contact_type, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Active', 'lead', ?, ?)`,
+        [newId, orgId, data.name.trim(), data.email ? data.email.trim() : null, data.phone || null, data.company || null, data.notes || null, now, now]
       );
       if (data.notes && data.notes.trim()) {
         await run(
@@ -517,7 +568,9 @@ const customerStore = {
     if (!existing) return null;
 
     const now = new Date().toISOString();
-    if (existing.type === "customer") {
+    const targetType = data.type || existing.type;
+
+    if (targetType === "customer") {
       await run(
         `UPDATE customers SET 
            name = COALESCE(?, name),
@@ -526,9 +579,21 @@ const customerStore = {
            company = COALESCE(?, company),
            address = COALESCE(?, address),
            status = COALESCE(?, status),
+           contact_type = 'customer',
            updated_at = ?
          WHERE id = ?`,
         [data.name, data.email, data.phone, data.company, data.notes, data.status, now, id]
+      );
+      await run(
+        `UPDATE leads SET 
+           name = COALESCE(?, name),
+           email = COALESCE(?, email),
+           phone = COALESCE(?, phone),
+           company = COALESCE(?, company),
+           status = 'Converted',
+           updated_at = ?
+         WHERE id = ?`,
+        [data.name, data.email, data.phone, data.company, now, id]
       );
     } else {
       await run(
@@ -549,10 +614,18 @@ const customerStore = {
            email = COALESCE(?, email),
            phone = COALESCE(?, phone),
            company = COALESCE(?, company),
+           address = COALESCE(?, address),
+           contact_type = 'lead',
            updated_at = ?
          WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, now, id]
+        [data.name, data.email, data.phone, data.company, data.notes, now, id]
       );
+      if (data.notes && data.notes.trim()) {
+        await run(
+          `INSERT INTO lead_notes (id, lead_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+          [generateId("note"), id, data.notes.trim(), now, now]
+        );
+      }
     }
 
     await this.syncFromDatabase();
@@ -1056,18 +1129,23 @@ const quotationStore = {
     const { items: validatedItems, subtotal, taxTotal, grandTotal } = calculateQuotationTotals(data.items);
 
     // 3. Generate sequential organization-aware quote number
-    const maxQuote = await get(
-      "SELECT quote_number FROM quotations WHERE organization_id = ? ORDER BY rowid DESC LIMIT 1",
-      [orgId]
-    );
-    let quoteSeq = 1001;
-    if (maxQuote && maxQuote.quote_number) {
-      const match = maxQuote.quote_number.match(/\d+/);
-      if (match) {
-        quoteSeq = parseInt(match[0], 10) + 1;
+    const allQuotes = await all("SELECT quote_number FROM quotations WHERE organization_id = ?", [orgId]);
+    let maxQuoteSeq = 1000;
+    for (const q of allQuotes) {
+      if (q.quote_number) {
+        const match = q.quote_number.match(/\d+/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (num > maxQuoteSeq) maxQuoteSeq = num;
+        }
       }
     }
-    const quoteNumber = `QT-${quoteSeq}`;
+    let quoteSeq = maxQuoteSeq + 1;
+    let quoteNumber = `QT-${quoteSeq}`;
+    while (await get("SELECT id FROM quotations WHERE organization_id = ? AND quote_number = ?", [orgId, quoteNumber])) {
+      quoteSeq++;
+      quoteNumber = `QT-${quoteSeq}`;
+    }
     const quoteId = generateId("quote");
     const now = new Date().toISOString();
     const status = ["Draft", "Sent", "Accepted", "Declined"].includes(data.status)
@@ -1380,16 +1458,23 @@ const ticketStore = {
       }
     }
 
-    const maxTicket = await get("SELECT ticket_number FROM tickets WHERE organization_id = ? ORDER BY rowid DESC LIMIT 1", [orgId]);
-    let ticketSeq = 1001;
-    if (maxTicket && maxTicket.ticket_number) {
-      const match = maxTicket.ticket_number.match(/\d+/);
-      if (match) {
-        ticketSeq = parseInt(match[0], 10) + 1;
+    const allTickets = await all("SELECT ticket_number FROM tickets WHERE organization_id = ?", [orgId]);
+    let maxTicketSeq = 1000;
+    for (const t of allTickets) {
+      if (t.ticket_number) {
+        const match = t.ticket_number.match(/\d+/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (num > maxTicketSeq) maxTicketSeq = num;
+        }
       }
     }
-
-    const ticketNumber = `TCK-${ticketSeq}`;
+    let ticketSeq = maxTicketSeq + 1;
+    let ticketNumber = `TCK-${ticketSeq}`;
+    while (await get("SELECT id FROM tickets WHERE organization_id = ? AND ticket_number = ?", [orgId, ticketNumber])) {
+      ticketSeq++;
+      ticketNumber = `TCK-${ticketSeq}`;
+    }
     const ticketId = generateId("tck");
     const now = new Date().toISOString();
     const priority = ["Low", "Medium", "High", "Urgent"].includes(data.priority) ? data.priority : "Medium";
