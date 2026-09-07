@@ -190,20 +190,20 @@ export default function TicketView({
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3.5">Ticket #</th>
-                  <th className="px-6 py-3.5">Subject & Account</th>
-                  <th className="px-6 py-3.5">Priority</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5">Assigned Agent</th>
-                  <th className="px-6 py-3.5">Replies</th>
-                  <th className="px-6 py-3.5 text-right">Actions</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Ticket #</th>
+                  <th className="px-6 py-3.5 min-w-[220px]">Subject & Account</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Priority</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Status</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Assigned Agent</th>
+                  <th className="px-6 py-3.5 whitespace-nowrap">Replies</th>
+                  <th className="px-6 py-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredTickets.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                     {/* Ticket Number */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <button
                         onClick={() => setActiveTicket(t)}
                         className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
@@ -221,15 +221,15 @@ export default function TicketView({
                         {t.title}
                       </div>
                       <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                        <IconBuilding className="w-3 h-3 text-slate-400" />
-                        <span>{t.customerName || "Unassigned Account"}</span>
+                        <IconBuilding className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                        <span className="truncate">{t.customerName || "Unassigned Account"}</span>
                       </div>
                     </td>
 
                     {/* Priority Badge */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                           priorityColors[t.priority] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -238,9 +238,9 @@ export default function TicketView({
                     </td>
 
                     {/* Status Badge */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                           statusColors[t.status] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -249,21 +249,21 @@ export default function TicketView({
                     </td>
 
                     {/* Assigned To (Simple string attribute) */}
-                    <td className="px-6 py-4 text-xs text-slate-700 font-medium">
+                    <td className="px-6 py-4 text-xs text-slate-700 font-medium whitespace-nowrap">
                       {t.assignedTo || "Unassigned"}
                     </td>
 
                     {/* Comment Count */}
-                    <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                    <td className="px-6 py-4 text-xs text-slate-500 font-mono whitespace-nowrap">
                       {t.comments?.length || 0} note{t.comments?.length === 1 ? "" : "s"}
                     </td>
 
                     {/* Actions */}
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => setActiveTicket(t)}
-                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors"
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
                         >
                           View Thread
                         </button>
@@ -296,11 +296,14 @@ export default function TicketView({
             <div className="flex items-start justify-between pb-4 border-b border-slate-100">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
+                  <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded whitespace-nowrap">
                     {activeTicket.ticketNumber}
                   </span>
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${priorityColors[activeTicket.priority]}`}>
+                  <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${priorityColors[activeTicket.priority]}`}>
                     {activeTicket.priority} Priority
+                  </span>
+                  <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${statusColors[activeTicket.status]}`}>
+                    {activeTicket.status}
                   </span>
                 </div>
                 <h3 className="font-bold text-slate-900 text-lg mt-1.5 leading-snug">
@@ -319,14 +322,14 @@ export default function TicketView({
             </div>
 
             {/* Status Selector */}
-            <div className="py-3 px-4 bg-slate-50 rounded-xl border border-slate-200/80 my-3 flex items-center justify-between">
+            <div className="py-3 px-4 bg-slate-50 rounded-xl border border-slate-200/80 my-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-semibold text-slate-700">Ticket Status:</span>
-              <div className="flex gap-1">
+              <div className="flex flex-wrap gap-1">
                 {STATUSES.map((st) => (
                   <button
                     key={st}
                     onClick={() => handleStatusChange(st)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                       activeTicket.status === st
                         ? "bg-indigo-600 text-white shadow-xs"
                         : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"

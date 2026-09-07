@@ -278,10 +278,41 @@ async function proofIndexesAndRelationships() {
 // -------------------------------------------------------------
 // Day 4 Proofs: Customers, Quotations, Tickets, Payments
 // -------------------------------------------------------------
+// -------------------------------------------------------------
+// Day 4 Individual Proofs: Quotations, Items, Customers, Tickets, Comments, Attachments, Payments
+// -------------------------------------------------------------
+async function proofQuotationsOnly() {
+  await ensureSampleData();
+  console.log("\n========================================================");
+  console.log("PROOFS FOR DAY 4 ITEM 1: QUOTATIONS TABLE");
+  console.log("========================================================");
+  await printSchema("quotations");
+  await printForeignKeys("quotations");
+
+  const sampleQuotes = await all("SELECT id, quote_number, customer_id, issue_date, valid_until, status, grand_total FROM quotations LIMIT 3");
+  console.log("\n🔍 Sample Data in 'quotations' table:");
+  console.table(sampleQuotes);
+  console.log("✅ Proof Status: 'quotations' table is live with multi-tenant numbering & status constraints.\n");
+}
+
+async function proofQuotationItemsOnly() {
+  await ensureSampleData();
+  console.log("\n========================================================");
+  console.log("PROOFS FOR DAY 4 ITEM 2: QUOTATION ITEMS & TAX TABLE");
+  console.log("========================================================");
+  await printSchema("quotation_items");
+  await printForeignKeys("quotation_items");
+
+  const sampleItems = await all("SELECT id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total FROM quotation_items LIMIT 5");
+  console.log("\n🔍 Sample Data in 'quotation_items' table:");
+  console.table(sampleItems);
+  console.log("✅ Proof Status: 'quotation_items' table is live with tax rates, auto-calculated line totals, & cascade delete.\n");
+}
+
 async function proofCustomers() {
   await ensureSampleData();
   console.log("\n========================================================");
-  console.log("PROOFS FOR DAY 4 REQUIREMENT 1: CUSTOMERS TABLE");
+  console.log("PROOFS FOR DAY 4 ITEM 3: CUSTOMERS TABLE");
   console.log("========================================================");
   await printSchema("customers");
   await printForeignKeys("customers");
@@ -292,42 +323,25 @@ async function proofCustomers() {
   console.log("✅ Proof Status: 'customers' table is live with organization foreign key & status constraints.\n");
 }
 
-async function proofQuotations() {
+async function proofTicketsOnly() {
   await ensureSampleData();
   console.log("\n========================================================");
-  console.log("PROOFS FOR DAY 4 REQUIREMENT 2 & 3: QUOTATIONS & ITEMS");
+  console.log("PROOFS FOR DAY 4 ITEM 4: TICKETS TABLE");
   console.log("========================================================");
-  console.log("\n--- Quotations Table ---");
-  await printSchema("quotations");
-  await printForeignKeys("quotations");
-
-  const sampleQuotes = await all("SELECT id, quote_number, customer_id, issue_date, valid_until, status, grand_total FROM quotations LIMIT 3");
-  console.log("\n🔍 Sample Data in 'quotations' table:");
-  console.table(sampleQuotes);
-
-  console.log("\n--- Quotation Items Table ---");
-  await printSchema("quotation_items");
-  await printForeignKeys("quotation_items");
-
-  const sampleItems = await all("SELECT id, quotation_id, description, quantity, unit_price, tax_rate, tax_amount, line_total FROM quotation_items LIMIT 5");
-  console.log("\n🔍 Sample Data in 'quotation_items' table:");
-  console.table(sampleItems);
-  console.log("✅ Proof Status: 'quotations' and 'quotation_items' live with cascade delete & verified totals.\n");
-}
-
-async function proofTickets() {
-  await ensureSampleData();
-  console.log("\n========================================================");
-  console.log("PROOFS FOR DAY 4 REQUIREMENT 4, 5 & 6: TICKETS & THREADING");
-  console.log("========================================================");
-  console.log("\n--- Tickets Table ---");
   await printSchema("tickets");
   await printForeignKeys("tickets");
 
   const sampleTickets = await all("SELECT id, ticket_number, customer_id, title, priority, status, assigned_to FROM tickets LIMIT 3");
   console.log("\n🔍 Sample Data in 'tickets' table:");
   console.table(sampleTickets);
+  console.log("✅ Proof Status: 'tickets' table is live with multi-tenant unique numbering & priority/status constraints.\n");
+}
 
+async function proofTicketCommentsAndAttachments() {
+  await ensureSampleData();
+  console.log("\n========================================================");
+  console.log("PROOFS FOR DAY 4 ITEM 5: TICKET COMMENTS & ATTACHMENTS");
+  console.log("========================================================");
   console.log("\n--- Ticket Comments Table ---");
   await printSchema("ticket_comments");
   await printForeignKeys("ticket_comments");
@@ -341,13 +355,13 @@ async function proofTickets() {
   const sampleAtt = await all("SELECT id, ticket_id, original_filename, stored_path, mime_type, file_size FROM ticket_attachments LIMIT 3");
   console.log("\n🔍 Sample Data in 'ticket_attachments' table:");
   console.table(sampleAtt);
-  console.log("✅ Proof Status: 'tickets', 'ticket_comments', & 'ticket_attachments' are live with full relational cascades.\n");
+  console.log("✅ Proof Status: 'ticket_comments' & 'ticket_attachments' are live with full cascade deletes.\n");
 }
 
 async function proofPayments() {
   await ensureSampleData();
   console.log("\n========================================================");
-  console.log("PROOFS FOR DAY 4 REQUIREMENT 7: PAYMENTS TRACKING");
+  console.log("PROOFS FOR DAY 4 ITEM 6: PAYMENTS TRACKING TABLE");
   console.log("========================================================");
   await printSchema("payments");
   await printForeignKeys("payments");
@@ -358,14 +372,19 @@ async function proofPayments() {
   console.log("✅ Proof Status: 'payments' table is live with multi-payment quotation support & method constraints.\n");
 }
 
-async function proofDay4All() {
-  await proofCustomers();
-  await proofQuotations();
-  await proofTickets();
-  await proofPayments();
+async function proofQuotations() {
+  await proofQuotationsOnly();
+  await proofQuotationItemsOnly();
+}
 
+async function proofTickets() {
+  await proofTicketsOnly();
+  await proofTicketCommentsAndAttachments();
+}
+
+async function proofDay4Indexes() {
   console.log("\n========================================================");
-  console.log("PROOFS FOR ALL DAY 4 INDEXES & RELATIONSHIPS");
+  console.log("PROOFS FOR DAY 4 INDEXES & RELATIONSHIPS");
   console.log("========================================================");
   const day4Tables = ["customers", "quotations", "quotation_items", "tickets", "ticket_comments", "ticket_attachments", "payments"];
   for (const table of day4Tables) {
@@ -393,27 +412,50 @@ async function proofDay4All() {
   console.log("✅ Proof Status: All Day 4 tables, foreign keys, and indexes verified.\n");
 }
 
+async function proofDay4All() {
+  await proofQuotationsOnly();
+  await proofQuotationItemsOnly();
+  await proofCustomers();
+  await proofTicketsOnly();
+  await proofTicketCommentsAndAttachments();
+  await proofPayments();
+  await proofDay4Indexes();
+}
+
 async function runProof() {
   const arg = (process.argv[2] || "").toLowerCase();
 
-  if (arg === "1" || arg === "leads" || arg === "lead") {
+  // Day 3 commands
+  if (arg === "leads" || arg === "lead") {
     await proofLeads();
-  } else if (arg === "2" || arg === "notes" || arg === "note") {
+  } else if (arg === "notes" || arg === "note") {
     await proofNotes();
-  } else if (arg === "3" || arg === "comm" || arg === "communication") {
+  } else if (arg === "comm" || arg === "communication") {
     await proofCommunication();
-  } else if (arg === "4" || arg === "pipeline" || arg === "stages" || arg === "deals") {
+  } else if (arg === "pipeline" || arg === "stages" || arg === "deals") {
     await proofPipeline();
-  } else if (arg === "5" || arg === "indexes" || arg === "relationships") {
+  } else if (arg === "day3-indexes") {
     await proofIndexesAndRelationships();
-  } else if (arg === "6" || arg === "customers" || arg === "customer") {
+
+  // Day 4 Individual Commands
+  } else if (arg === "1" || arg === "quote" || arg === "quotation" || arg === "quotations") {
+    await proofQuotationsOnly();
+  } else if (arg === "2" || arg === "items" || arg === "item" || arg === "quotation_items" || arg === "tax") {
+    await proofQuotationItemsOnly();
+  } else if (arg === "3" || arg === "customers" || arg === "customer" || arg === "6") {
     await proofCustomers();
-  } else if (arg === "7" || arg === "quotations" || arg === "quote") {
-    await proofQuotations();
-  } else if (arg === "8" || arg === "tickets" || arg === "ticket") {
-    await proofTickets();
-  } else if (arg === "9" || arg === "payments" || arg === "payment") {
+  } else if (arg === "4" || arg === "tickets" || arg === "ticket") {
+    await proofTicketsOnly();
+  } else if (arg === "5" || arg === "comments" || arg === "comment" || arg === "attachments" || arg === "attachment" || arg === "threads") {
+    await proofTicketCommentsAndAttachments();
+  } else if (arg === "6" || arg === "payments" || arg === "payment" || arg === "9") {
     await proofPayments();
+  } else if (arg === "7" || arg === "quotes-all") {
+    await proofQuotations();
+  } else if (arg === "8" || arg === "tickets-all") {
+    await proofTickets();
+  } else if (arg === "indexes" || arg === "day4-indexes") {
+    await proofDay4Indexes();
   } else if (arg === "day4") {
     await proofDay4All();
   } else if (arg === "all") {
@@ -425,20 +467,17 @@ async function runProof() {
     await proofDay4All();
   } else {
     console.log("\n========================================================");
-    console.log("CRM DATABASE SCHEMA & PROOFS GENERATOR");
+    console.log("DAY 4 CRM DATABASE PROOFS GENERATOR");
     console.log("========================================================");
-    console.log("Run any of these commands to view individual proof:\n");
-    console.log("  node proof.js 1         -> Proof for Leads Table");
-    console.log("  node proof.js 2         -> Proof for Lead Notes Table");
-    console.log("  node proof.js 3         -> Proof for Lead Communication Table");
-    console.log("  node proof.js 4         -> Proof for Sales Pipeline (Stages & Deals)");
-    console.log("  node proof.js 5         -> Proof for Day 3 Indexes & Relationships");
-    console.log("  node proof.js 6         -> Proof for Customers Table (Day 4)");
-    console.log("  node proof.js 7         -> Proof for Quotations & Items (Day 4)");
-    console.log("  node proof.js 8         -> Proof for Support Tickets & Attachments (Day 4)");
-    console.log("  node proof.js 9         -> Proof for Payments Tracking (Day 4)");
-    console.log("  node proof.js day4      -> Show all Day 4 proofs");
-    console.log("  node proof.js all       -> Show all Day 3 and Day 4 proofs sequentially\n");
+    console.log("Run any of these individual commands in your backend folder:\n");
+    console.log("  node proof.js quotations        -> Proof for Quotations Table");
+    console.log("  node proof.js quotation_items  -> Proof for Quotation Items & Tax");
+    console.log("  node proof.js customers        -> Proof for Customers Table");
+    console.log("  node proof.js tickets          -> Proof for Tickets Table");
+    console.log("  node proof.js comments         -> Proof for Comments & Attachments");
+    console.log("  node proof.js payments         -> Proof for Payments Tracking");
+    console.log("  node proof.js day4-indexes     -> Proof for Day 4 Indexes & FKs");
+    console.log("  node proof.js day4             -> Show all Day 4 proofs sequentially\n");
   }
   process.exit(0);
 }

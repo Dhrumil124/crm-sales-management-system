@@ -254,9 +254,9 @@ export default function CrmView({
                       </td>
 
                       {/* Type Badge */}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                          className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                             isLead
                               ? "bg-amber-50 text-amber-800 border-amber-200"
                               : "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -267,9 +267,9 @@ export default function CrmView({
                       </td>
 
                       {/* Status Badge */}
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                          className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full border whitespace-nowrap ${
                             statusColors[contact.status] || "bg-slate-100 text-slate-700 border-slate-200"
                           }`}
                         >

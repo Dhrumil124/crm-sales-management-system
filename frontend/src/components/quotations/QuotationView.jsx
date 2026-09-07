@@ -183,9 +183,9 @@ export default function QuotationView({
                     </td>
 
                     {/* Status Badge */}
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                           statusColors[quote.status] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
