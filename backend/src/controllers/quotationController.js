@@ -33,6 +33,10 @@ const createQuotation = async (req, res) => {
   try {
     const { customerId, customerName, items, status, issueDate, validUntil } = req.body;
 
+    if (!customerId || !String(customerId).trim()) {
+      return res.status(400).json({ message: "A valid client must be selected for the quotation" });
+    }
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "At least one quotation line item is required" });
     }
@@ -53,7 +57,7 @@ const createQuotation = async (req, res) => {
     const validatedStatus = ALLOWED_STATUSES.includes(status) ? status : "Draft";
 
     const newQuotation = await quotationStore.create({
-      customerId: customerId || "",
+      customerId: customerId.trim(),
       customerName: customerName || "",
       items,
       status: validatedStatus,
@@ -63,7 +67,8 @@ const createQuotation = async (req, res) => {
 
     res.status(201).json(newQuotation);
   } catch (error) {
-    res.status(500).json({ message: "Failed to create quotation", error: error.message });
+    const status = error.message && (error.message.includes("client") || error.message.includes("Customer")) ? 400 : 500;
+    res.status(status).json({ message: error.message || "Failed to create quotation" });
   }
 };
 

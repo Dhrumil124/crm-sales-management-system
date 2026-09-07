@@ -18,6 +18,18 @@ const PIPELINE_STAGES = [
   { id: "Lost", label: "Closed Lost", color: "border-t-rose-400" }
 ];
 
+export const matchesStage = (dealStage, colId) => {
+  if (!dealStage) return colId === "Lead";
+  const s = String(dealStage).toLowerCase().trim();
+  if (colId === "Lead") return s === "lead" || s === "lead in";
+  if (colId === "Contacted") return s === "contacted" || s === "contact made";
+  if (colId === "Proposal") return s === "proposal" || s === "proposal sent";
+  if (colId === "Negotiation") return s === "negotiation";
+  if (colId === "Won") return s === "won" || s === "closed won";
+  if (colId === "Lost") return s === "lost" || s === "closed lost";
+  return s === String(colId).toLowerCase();
+};
+
 export default function PipelineView({
   deals,
   customers,
@@ -74,7 +86,7 @@ export default function PipelineView({
 
   // Helper to move stages
   const moveStage = (deal, direction) => {
-    const currentIndex = PIPELINE_STAGES.findIndex(s => s.id === deal.stage);
+    const currentIndex = PIPELINE_STAGES.findIndex(s => matchesStage(deal.stage, s.id));
     if (currentIndex === -1) return;
 
     const nextIndex = currentIndex + direction;
@@ -108,7 +120,7 @@ export default function PipelineView({
       {/* Kanban Board Columns Grid */}
       <div className="flex gap-4 items-start overflow-x-auto pb-6">
         {PIPELINE_STAGES.map((col, colIdx) => {
-          const stageDeals = deals.filter(d => d.stage === col.id);
+          const stageDeals = deals.filter(d => matchesStage(d.stage, col.id));
           const colValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
 
           return (

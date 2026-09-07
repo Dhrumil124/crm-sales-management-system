@@ -80,15 +80,21 @@ export default function QuotationView({
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (items.length === 0 || !items.some(i => i.description.trim())) {
+    const selectedCustomerId = customerId || (customers.length > 0 ? customers[0].id : "");
+    if (!selectedCustomerId) {
+      setFormError("Please select a client for this quotation.");
+      return;
+    }
+    const validItems = items.filter(i => i.description.trim());
+    if (validItems.length === 0) {
       setFormError("At least one line item with a valid description is required.");
       return;
     }
 
     try {
       await onAddQuotation({
-        customerId,
-        items,
+        customerId: selectedCustomerId,
+        items: validItems,
         status,
         issueDate,
         validUntil
@@ -297,7 +303,7 @@ export default function QuotationView({
                     Select Client *
                   </label>
                   <select
-                    value={customerId}
+                    value={customerId || (customers.length > 0 ? customers[0].id : "")}
                     onChange={(e) => setCustomerId(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   >

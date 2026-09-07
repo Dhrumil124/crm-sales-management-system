@@ -148,71 +148,138 @@ export default function App() {
   // 2. Sales Pipeline Handlers
   // ------------------------------------------------------------------
   const handleAddDeal = async (data) => {
-    const created = await api.pipeline.create(data);
-    showToast(`Opportunity "${created.title}" added to pipeline.`);
-    await loadAllData(true);
+    try {
+      const created = await api.pipeline.create(data);
+      setDeals(prev => [created, ...prev.filter(d => d.id !== created.id)]);
+      showToast(`Opportunity "${created.title}" added to pipeline.`);
+      await loadAllData(true);
+      return created;
+    } catch (err) {
+      showToast(`Failed to create deal: ${err.message}`, "error");
+      throw err;
+    }
   };
 
   const handleUpdateDealStage = async (id, stage) => {
-    await api.pipeline.updateStage(id, stage);
-    showToast(`Deal moved to stage: ${stage}`);
-    await loadAllData(true);
+    const prevDeals = [...deals];
+    setDeals(prev => prev.map(d => d.id === id ? { ...d, stage } : d));
+    try {
+      const persisted = await api.pipeline.updateStage(id, stage);
+      setDeals(prev => prev.map(d => d.id === id ? persisted : d));
+      showToast(`Deal moved to stage: ${stage}`);
+      await loadAllData(true);
+    } catch (err) {
+      setDeals(prevDeals);
+      showToast(`Failed to move deal: ${err.message}`, "error");
+    }
   };
 
   const handleDeleteDeal = async (id) => {
-    await api.pipeline.delete(id);
-    showToast("Deal removed from pipeline.");
-    await loadAllData(true);
+    try {
+      await api.pipeline.delete(id);
+      setDeals(prev => prev.filter(d => d.id !== id));
+      showToast("Deal removed from pipeline.");
+      await loadAllData(true);
+    } catch (err) {
+      showToast(`Failed to delete deal: ${err.message}`, "error");
+    }
   };
 
   // ------------------------------------------------------------------
   // 3. Quotation Handlers
   // ------------------------------------------------------------------
   const handleAddQuotation = async (data) => {
-    const created = await api.quotations.create(data);
-    showToast(`Quotation ${created.quoteNumber} issued (₹${created.grandTotal.toLocaleString("en-IN")}).`);
-    await loadAllData(true);
+    try {
+      const created = await api.quotations.create(data);
+      setQuotations(prev => [created, ...prev.filter(q => q.id !== created.id)]);
+      showToast(`Quotation ${created.quoteNumber} issued (₹${Number(created.grandTotal).toLocaleString("en-IN")}).`);
+      await loadAllData(true);
+      return created;
+    } catch (err) {
+      showToast(`Failed to create quotation: ${err.message}`, "error");
+      throw err;
+    }
   };
 
   const handleUpdateQuoteStatus = async (id, status) => {
-    await api.quotations.updateStatus(id, status);
-    showToast(`Quotation status changed to "${status}".`);
-    await loadAllData(true);
+    const prevQuotes = [...quotations];
+    setQuotations(prev => prev.map(q => q.id === id ? { ...q, status } : q));
+    try {
+      const persisted = await api.quotations.updateStatus(id, status);
+      setQuotations(prev => prev.map(q => q.id === id ? persisted : q));
+      showToast(`Quotation status changed to "${status}".`);
+      await loadAllData(true);
+    } catch (err) {
+      setQuotations(prevQuotes);
+      showToast(`Failed to update quotation: ${err.message}`, "error");
+    }
   };
 
   const handleDeleteQuotation = async (id) => {
-    await api.quotations.delete(id);
-    showToast("Quotation deleted.");
-    await loadAllData(true);
+    try {
+      await api.quotations.delete(id);
+      setQuotations(prev => prev.filter(q => q.id !== id));
+      showToast("Quotation deleted.");
+      await loadAllData(true);
+    } catch (err) {
+      showToast(`Failed to delete quotation: ${err.message}`, "error");
+    }
   };
 
   // ------------------------------------------------------------------
   // 4. Support Ticket Handlers
   // ------------------------------------------------------------------
   const handleAddTicket = async (data) => {
-    const created = await api.tickets.create(data);
-    showToast(`Support Ticket ${created.ticketNumber} opened.`);
-    await loadAllData(true);
+    try {
+      const created = await api.tickets.create(data);
+      setTickets(prev => [created, ...prev.filter(t => t.id !== created.id)]);
+      showToast(`Support Ticket ${created.ticketNumber} opened.`);
+      await loadAllData(true);
+      return created;
+    } catch (err) {
+      showToast(`Failed to open ticket: ${err.message}`, "error");
+      throw err;
+    }
   };
 
   const handleUpdateTicketStatus = async (id, status) => {
-    const updated = await api.tickets.updateStatus(id, status);
-    showToast(`Ticket status updated to "${status}".`);
-    await loadAllData(true);
-    return updated;
+    const prevTickets = [...tickets];
+    setTickets(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+    try {
+      const updated = await api.tickets.updateStatus(id, status);
+      setTickets(prev => prev.map(t => t.id === id ? updated : t));
+      showToast(`Ticket status updated to "${status}".`);
+      await loadAllData(true);
+      return updated;
+    } catch (err) {
+      setTickets(prevTickets);
+      showToast(`Failed to update ticket: ${err.message}`, "error");
+      throw err;
+    }
   };
 
   const handleAddTicketComment = async (id, commentData) => {
-    const updated = await api.tickets.addComment(id, commentData);
-    showToast("Comment posted to ticket timeline.");
-    await loadAllData(true);
-    return updated;
+    try {
+      const updated = await api.tickets.addComment(id, commentData);
+      setTickets(prev => prev.map(t => t.id === id ? updated : t));
+      showToast("Comment posted to ticket timeline.");
+      await loadAllData(true);
+      return updated;
+    } catch (err) {
+      showToast(`Failed to add comment: ${err.message}`, "error");
+      throw err;
+    }
   };
 
   const handleDeleteTicket = async (id) => {
-    await api.tickets.delete(id);
-    showToast("Ticket deleted.");
-    await loadAllData(true);
+    try {
+      await api.tickets.delete(id);
+      setTickets(prev => prev.filter(t => t.id !== id));
+      showToast("Ticket deleted.");
+      await loadAllData(true);
+    } catch (err) {
+      showToast(`Failed to delete ticket: ${err.message}`, "error");
+    }
   };
 
   // Quick Action navigation from Header/Dashboard

@@ -1,6 +1,9 @@
 const { dealStore } = require("../services/storage");
 
-const ALLOWED_STAGES = ["Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost"];
+const ALLOWED_STAGES = [
+  "Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost",
+  "Lead In", "Contact Made", "Proposal Sent", "Closed Won", "Closed Lost"
+];
 
 const getAllDeals = async (req, res) => {
   try {
