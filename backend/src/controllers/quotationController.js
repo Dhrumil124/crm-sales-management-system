@@ -4,8 +4,12 @@ const ALLOWED_STATUSES = ["Draft", "Sent", "Accepted", "Declined"];
 
 const getAllQuotations = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { status, customerId } = req.query;
-    const data = await quotationStore.getAll({ status, customerId });
+    const data = await quotationStore.getAll({ status, customerId, organizationId });
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch quotations", error: error.message });
@@ -14,7 +18,11 @@ const getAllQuotations = async (req, res) => {
 
 const getQuotationById = async (req, res) => {
   try {
-    const quote = await quotationStore.getById(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const quote = await quotationStore.getById(req.params.id, organizationId);
     if (!quote) {
       return res.status(404).json({ message: "Quotation not found" });
     }
@@ -31,6 +39,10 @@ const getQuotationById = async (req, res) => {
  */
 const createQuotation = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { customerId, customerName, items, status, issueDate, validUntil } = req.body;
 
     if (!customerId || !String(customerId).trim()) {
@@ -62,18 +74,23 @@ const createQuotation = async (req, res) => {
       items,
       status: validatedStatus,
       issueDate,
-      validUntil
+      validUntil,
+      organizationId
     });
 
     res.status(201).json(newQuotation);
   } catch (error) {
-    const status = error.message && (error.message.includes("client") || error.message.includes("Customer")) ? 400 : 500;
+    const status = error.message && (error.message.includes("client") || error.message.includes("Customer") || error.message.includes("organization")) ? 400 : 500;
     res.status(status).json({ message: error.message || "Failed to create quotation" });
   }
 };
 
 const updateQuotationStatus = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { status } = req.body;
     if (!status || !ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({
@@ -81,7 +98,7 @@ const updateQuotationStatus = async (req, res) => {
       });
     }
 
-    const updated = await quotationStore.updateStatus(req.params.id, status);
+    const updated = await quotationStore.updateStatus(req.params.id, status, organizationId);
     if (!updated) {
       return res.status(404).json({ message: "Quotation not found" });
     }
@@ -94,7 +111,11 @@ const updateQuotationStatus = async (req, res) => {
 
 const deleteQuotation = async (req, res) => {
   try {
-    const success = await quotationStore.delete(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const success = await quotationStore.delete(req.params.id, organizationId);
     if (!success) {
       return res.status(404).json({ message: "Quotation not found" });
     }

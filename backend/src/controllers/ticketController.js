@@ -5,8 +5,12 @@ const ALLOWED_STATUSES = ["Open", "In Progress", "Waiting", "Resolved", "Closed"
 
 const getAllTickets = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { status, priority, customerId } = req.query;
-    const data = await ticketStore.getAll({ status, priority, customerId });
+    const data = await ticketStore.getAll({ status, priority, customerId, organizationId });
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch tickets", error: error.message });
@@ -15,7 +19,11 @@ const getAllTickets = async (req, res) => {
 
 const getTicketById = async (req, res) => {
   try {
-    const ticket = await ticketStore.getById(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const ticket = await ticketStore.getById(req.params.id, organizationId);
     if (!ticket) {
       return res.status(404).json({ message: "Ticket not found" });
     }
@@ -27,6 +35,10 @@ const getTicketById = async (req, res) => {
 
 const createTicket = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { title, description, priority, customerId, customerName, assignedTo } = req.body;
 
     if (!title || !title.trim()) {
@@ -44,7 +56,8 @@ const createTicket = async (req, res) => {
       priority: validatedPriority,
       customerId: customerId || "",
       customerName: customerName || "",
-      assignedTo: assignedTo ? assignedTo.trim() : "Unassigned"
+      assignedTo: assignedTo ? assignedTo.trim() : "Unassigned",
+      organizationId
     });
 
     res.status(201).json(newTicket);
@@ -55,6 +68,10 @@ const createTicket = async (req, res) => {
 
 const updateTicketStatus = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { status } = req.body;
     if (!status || !ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({
@@ -62,7 +79,7 @@ const updateTicketStatus = async (req, res) => {
       });
     }
 
-    const updated = await ticketStore.updateStatus(req.params.id, status);
+    const updated = await ticketStore.updateStatus(req.params.id, status, organizationId);
     if (!updated) {
       return res.status(404).json({ message: "Ticket not found" });
     }
@@ -75,6 +92,10 @@ const updateTicketStatus = async (req, res) => {
 
 const addComment = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { author, text } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ message: "Comment text is required" });
@@ -82,8 +103,9 @@ const addComment = async (req, res) => {
 
     const updated = await ticketStore.addComment(req.params.id, {
       author: author ? author.trim() : "Staff",
-      text: text.trim()
-    });
+      text: text.trim(),
+      userId: req.user?.userId || null
+    }, organizationId);
 
     if (!updated) {
       return res.status(404).json({ message: "Ticket not found" });
@@ -97,7 +119,11 @@ const addComment = async (req, res) => {
 
 const deleteTicket = async (req, res) => {
   try {
-    const success = await ticketStore.delete(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const success = await ticketStore.delete(req.params.id, organizationId);
     if (!success) {
       return res.status(404).json({ message: "Ticket not found" });
     }

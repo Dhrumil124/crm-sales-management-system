@@ -439,9 +439,90 @@ const customerStore = {
     }
   },
 
-  async getAll({ search = "", type = "", status = "" } = {}) {
-    await this.syncFromDatabase();
-    let result = [...customers];
+  async getAll({ search = "", type = "", status = "", organizationId = null } = {}) {
+    await ensureDatabaseSeeded();
+    let dbCustomers;
+    let dbLeads;
+
+    if (organizationId) {
+      dbCustomers = await all("SELECT * FROM customers WHERE organization_id = ? ORDER BY created_at DESC", [organizationId]);
+      dbLeads = await all(
+        `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note
+         FROM leads l
+         WHERE l.organization_id = ?
+         ORDER BY l.created_at DESC`,
+        [organizationId]
+      );
+    } else {
+      await this.syncFromDatabase();
+      dbCustomers = await all("SELECT * FROM customers ORDER BY created_at DESC");
+      dbLeads = await all(
+        `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note
+         FROM leads l
+         ORDER BY l.created_at DESC`
+      );
+    }
+
+    const leadMap = new Map();
+    for (const l of dbLeads) {
+      leadMap.set(l.id, l);
+    }
+
+    const combined = [];
+    const seenIds = new Set();
+
+    for (const cu of dbCustomers) {
+      seenIds.add(cu.id);
+      const l = leadMap.get(cu.id);
+      const isLead =
+        cu.contact_type === "lead" ||
+        (!cu.contact_type && l && cu.id !== "cust-1" && cu.id !== "cust-2" && l.status !== "Converted");
+
+      if (isLead && l) {
+        combined.push({
+          id: cu.id,
+          name: l.name || cu.name,
+          email: l.email || cu.email || "",
+          phone: l.phone || cu.phone || "",
+          company: l.company || cu.company || "",
+          type: "lead",
+          status: l.status || "New",
+          notes: l.note || cu.address || "",
+          createdAt: l.created_at || cu.created_at || new Date().toISOString()
+        });
+      } else {
+        combined.push({
+          id: cu.id,
+          name: cu.name,
+          email: cu.email || "",
+          phone: cu.phone || "",
+          company: cu.company || "",
+          type: "customer",
+          status: cu.status || "Active",
+          notes: cu.address || "",
+          createdAt: cu.created_at || new Date().toISOString()
+        });
+      }
+    }
+
+    for (const l of dbLeads) {
+      if (!seenIds.has(l.id)) {
+        seenIds.add(l.id);
+        combined.push({
+          id: l.id,
+          name: l.name,
+          email: l.email || "",
+          phone: l.phone || "",
+          company: l.company || "",
+          type: "lead",
+          status: l.status || "New",
+          notes: l.note || "",
+          createdAt: l.created_at || new Date().toISOString()
+        });
+      }
+    }
+
+    let result = combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (type) {
       result = result.filter(c => c.type.toLowerCase() === type.toLowerCase());
     }
@@ -457,17 +538,28 @@ const customerStore = {
         (c.phone && c.phone.toLowerCase().includes(q))
       );
     }
+    if (!organizationId) {
+      customers = result;
+    }
     return result;
   },
 
-  async getById(id) {
+  async getById(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    const cust = await get("SELECT * FROM customers WHERE id = ?", [id]);
-    const lead = await get(
-      `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note
-       FROM leads l WHERE l.id = ?`,
-      [id]
-    );
+    let custSql = "SELECT * FROM customers WHERE id = ?";
+    let custParams = [id];
+    let leadSql = `SELECT l.*, (SELECT content FROM lead_notes WHERE lead_id = l.id ORDER BY created_at DESC LIMIT 1) as note FROM leads l WHERE l.id = ?`;
+    let leadParams = [id];
+
+    if (organizationId) {
+      custSql += " AND organization_id = ?";
+      custParams.push(organizationId);
+      leadSql += " AND l.organization_id = ?";
+      leadParams.push(organizationId);
+    }
+
+    const cust = await get(custSql, custParams);
+    const lead = await get(leadSql, leadParams);
 
     if (!cust && !lead) return null;
 
@@ -519,8 +611,11 @@ const customerStore = {
 
   async create(data) {
     await ensureDatabaseSeeded();
-    const org = await get("SELECT id FROM organizations LIMIT 1");
-    const orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    let orgId = data.organizationId;
+    if (!orgId) {
+      const org = await get("SELECT id FROM organizations LIMIT 1");
+      orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    }
 
     const newId = generateId("cust");
     const now = new Date().toISOString();
@@ -559,20 +654,19 @@ const customerStore = {
     }
 
     await this.syncFromDatabase();
-    return await this.getById(newId);
+    return await this.getById(newId, orgId);
   },
 
-  async update(id, data) {
+  async update(id, data, organizationId = null) {
     await ensureDatabaseSeeded();
-    const existing = await this.getById(id);
+    const existing = await this.getById(id, organizationId);
     if (!existing) return null;
 
     const now = new Date().toISOString();
     const targetType = data.type || existing.type;
 
     if (targetType === "customer") {
-      await run(
-        `UPDATE customers SET 
+      let custSql = `UPDATE customers SET 
            name = COALESCE(?, name),
            email = COALESCE(?, email),
            phone = COALESCE(?, phone),
@@ -581,35 +675,45 @@ const customerStore = {
            status = COALESCE(?, status),
            contact_type = 'customer',
            updated_at = ?
-         WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, data.notes, data.status, now, id]
-      );
-      await run(
-        `UPDATE leads SET 
+         WHERE id = ?`;
+      let custParams = [data.name, data.email, data.phone, data.company, data.notes, data.status, now, id];
+      if (organizationId) {
+        custSql += " AND organization_id = ?";
+        custParams.push(organizationId);
+      }
+      await run(custSql, custParams);
+
+      let leadSql = `UPDATE leads SET 
            name = COALESCE(?, name),
            email = COALESCE(?, email),
            phone = COALESCE(?, phone),
            company = COALESCE(?, company),
            status = 'Converted',
            updated_at = ?
-         WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, now, id]
-      );
+         WHERE id = ?`;
+      let leadParams = [data.name, data.email, data.phone, data.company, now, id];
+      if (organizationId) {
+        leadSql += " AND organization_id = ?";
+        leadParams.push(organizationId);
+      }
+      await run(leadSql, leadParams);
     } else {
-      await run(
-        `UPDATE leads SET 
+      let leadSql = `UPDATE leads SET 
            name = COALESCE(?, name),
            email = COALESCE(?, email),
            phone = COALESCE(?, phone),
            company = COALESCE(?, company),
            status = COALESCE(?, status),
            updated_at = ?
-         WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, data.status, now, id]
-      );
-      // Keep customer mirror updated
-      await run(
-        `UPDATE customers SET 
+         WHERE id = ?`;
+      let leadParams = [data.name, data.email, data.phone, data.company, data.status, now, id];
+      if (organizationId) {
+        leadSql += " AND organization_id = ?";
+        leadParams.push(organizationId);
+      }
+      await run(leadSql, leadParams);
+
+      let custSql = `UPDATE customers SET 
            name = COALESCE(?, name),
            email = COALESCE(?, email),
            phone = COALESCE(?, phone),
@@ -617,9 +721,14 @@ const customerStore = {
            address = COALESCE(?, address),
            contact_type = 'lead',
            updated_at = ?
-         WHERE id = ?`,
-        [data.name, data.email, data.phone, data.company, data.notes, now, id]
-      );
+         WHERE id = ?`;
+      let custParams = [data.name, data.email, data.phone, data.company, data.notes, now, id];
+      if (organizationId) {
+        custSql += " AND organization_id = ?";
+        custParams.push(organizationId);
+      }
+      await run(custSql, custParams);
+
       if (data.notes && data.notes.trim()) {
         await run(
           `INSERT INTO lead_notes (id, lead_id, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
@@ -629,13 +738,28 @@ const customerStore = {
     }
 
     await this.syncFromDatabase();
-    return await this.getById(id);
+    return await this.getById(id, organizationId);
   },
 
-  async delete(id) {
+  async delete(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    const resCust = await run("DELETE FROM customers WHERE id = ?", [id]);
-    const resLead = await run("DELETE FROM leads WHERE id = ?", [id]);
+    const existing = await this.getById(id, organizationId);
+    if (!existing) return false;
+
+    let custSql = "DELETE FROM customers WHERE id = ?";
+    let custParams = [id];
+    let leadSql = "DELETE FROM leads WHERE id = ?";
+    let leadParams = [id];
+
+    if (organizationId) {
+      custSql += " AND organization_id = ?";
+      custParams.push(organizationId);
+      leadSql += " AND organization_id = ?";
+      leadParams.push(organizationId);
+    }
+
+    const resCust = await run(custSql, custParams);
+    const resLead = await run(leadSql, leadParams);
     const deleted = (resCust.changes > 0) || (resLead.changes > 0);
     await this.syncFromDatabase();
     return deleted;
@@ -678,7 +802,7 @@ const dealStore = {
     }
   },
 
-  async getAll({ stage = "", customerId = "" } = {}) {
+  async getAll({ stage = "", customerId = "", organizationId = null } = {}) {
     await ensureDatabaseSeeded();
     let query = `
       SELECT d.*, 
@@ -693,6 +817,10 @@ const dealStore = {
     `;
     const params = [];
 
+    if (organizationId) {
+      query += ` AND d.organization_id = ?`;
+      params.push(organizationId);
+    }
     if (stage) {
       const normDb = normalizeStageName(stage);
       query += ` AND (LOWER(s.name) = LOWER(?) OR LOWER(s.name) = LOWER(?))`;
@@ -718,24 +846,33 @@ const dealStore = {
       updatedAt: d.updated_at
     }));
 
-    deals = result;
+    if (!organizationId) {
+      deals = result;
+    }
     return result;
   },
 
-  async getById(id) {
+  async getById(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    const row = await get(
-      `SELECT d.*, 
-              COALESCE(c.name, l.name, '') as client_name,
-              COALESCE(c.company, l.company, '') as client_company,
-              s.name as stage_name
-       FROM deals d
-       LEFT JOIN customers c ON d.lead_id = c.id
-       LEFT JOIN leads l ON d.lead_id = l.id
-       LEFT JOIN pipeline_stages s ON d.stage_id = s.id
-       WHERE d.id = ?`,
-      [id]
-    );
+    let query = `
+      SELECT d.*, 
+             COALESCE(c.name, l.name, '') as client_name,
+             COALESCE(c.company, l.company, '') as client_company,
+             s.name as stage_name
+      FROM deals d
+      LEFT JOIN customers c ON d.lead_id = c.id
+      LEFT JOIN leads l ON d.lead_id = l.id
+      LEFT JOIN pipeline_stages s ON d.stage_id = s.id
+      WHERE d.id = ?
+    `;
+    const params = [id];
+
+    if (organizationId) {
+      query += ` AND d.organization_id = ?`;
+      params.push(organizationId);
+    }
+
+    const row = await get(query, params);
     if (!row) return null;
     return {
       id: row.id,
@@ -753,8 +890,11 @@ const dealStore = {
 
   async create(data) {
     await ensureDatabaseSeeded();
-    const org = await get("SELECT id FROM organizations LIMIT 1");
-    const orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    let orgId = data.organizationId;
+    if (!orgId) {
+      const org = await get("SELECT id FROM organizations LIMIT 1");
+      orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    }
 
     const normStage = normalizeStageName(data.stage || "Lead");
     const stages = await all("SELECT id, name FROM pipeline_stages WHERE organization_id = ?", [orgId]);
@@ -806,12 +946,18 @@ const dealStore = {
     );
 
     await this.syncFromDatabase();
-    return await this.getById(newDealId);
+    return await this.getById(newDealId, orgId);
   },
 
-  async update(id, data) {
+  async update(id, data, organizationId = null) {
     await ensureDatabaseSeeded();
-    const existing = await get("SELECT id, organization_id, stage_id FROM deals WHERE id = ?", [id]);
+    let checkSql = "SELECT id, organization_id, stage_id FROM deals WHERE id = ?";
+    let checkParams = [id];
+    if (organizationId) {
+      checkSql += " AND organization_id = ?";
+      checkParams.push(organizationId);
+    }
+    const existing = await get(checkSql, checkParams);
     if (!existing) return null;
 
     let stageId = existing.stage_id;
@@ -831,25 +977,34 @@ const dealStore = {
     }
 
     const now = new Date().toISOString();
-    await run(
-      `UPDATE deals SET
+    let updateSql = `UPDATE deals SET
          title = COALESCE(?, title),
          value = COALESCE(?, value),
          expected_close_date = COALESCE(?, expected_close_date),
          notes = COALESCE(?, notes),
          stage_id = ?,
          updated_at = ?
-       WHERE id = ?`,
-      [data.title, data.value !== undefined ? Number(data.value) : null, data.expectedCloseDate, data.notes, stageId, now, id]
-    );
+       WHERE id = ?`;
+    let updateParams = [data.title, data.value !== undefined ? Number(data.value) : null, data.expectedCloseDate, data.notes, stageId, now, id];
+    if (organizationId) {
+      updateSql += " AND organization_id = ?";
+      updateParams.push(organizationId);
+    }
+    await run(updateSql, updateParams);
 
     await this.syncFromDatabase();
-    return await this.getById(id);
+    return await this.getById(id, organizationId);
   },
 
-  async updateStage(id, stageInput) {
+  async updateStage(id, stageInput, organizationId = null) {
     await ensureDatabaseSeeded();
-    const dealRow = await get("SELECT id, organization_id FROM deals WHERE id = ?", [id]);
+    let query = "SELECT id, organization_id FROM deals WHERE id = ?";
+    let params = [id];
+    if (organizationId) {
+      query += " AND organization_id = ?";
+      params.push(organizationId);
+    }
+    const dealRow = await get(query, params);
     if (!dealRow) {
       return null;
     }
@@ -868,29 +1023,39 @@ const dealStore = {
     }
 
     const now = new Date().toISOString();
-    const updateResult = await run(
-      "UPDATE deals SET stage_id = ?, updated_at = ? WHERE id = ?",
-      [stageRow.id, now, id]
-    );
+    let updateSql = "UPDATE deals SET stage_id = ?, updated_at = ? WHERE id = ?";
+    let updateParams = [stageRow.id, now, id];
+    if (organizationId) {
+      updateSql += " AND organization_id = ?";
+      updateParams.push(organizationId);
+    }
+
+    const updateResult = await run(updateSql, updateParams);
 
     if (!updateResult || updateResult.changes === 0) {
       throw new Error(`Failed to update deal ${id} stage in SQLite.`);
     }
 
     await this.syncFromDatabase();
-    return await this.getById(id);
+    return await this.getById(id, organizationId);
   },
 
-  async delete(id) {
+  async delete(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    const res = await run("DELETE FROM deals WHERE id = ?", [id]);
+    let delSql = "DELETE FROM deals WHERE id = ?";
+    let delParams = [id];
+    if (organizationId) {
+      delSql += " AND organization_id = ?";
+      delParams.push(organizationId);
+    }
+    const res = await run(delSql, delParams);
     const success = res.changes > 0;
     await this.syncFromDatabase();
     return success;
   },
 
-  async getStats() {
-    const allDeals = await this.getAll();
+  async getStats(organizationId = null) {
+    const allDeals = await this.getAll({ organizationId });
     const stages = ["Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost"];
     const statsByStage = {};
     stages.forEach(s => {
@@ -976,7 +1141,7 @@ const quotationStore = {
     }
   },
 
-  async getAll({ status = "", customerId = "" } = {}) {
+  async getAll({ status = "", customerId = "", organizationId = null } = {}) {
     await ensureDatabaseSeeded();
     let query = `
       SELECT q.*, 
@@ -988,6 +1153,10 @@ const quotationStore = {
     `;
     const params = [];
 
+    if (organizationId) {
+      query += " AND q.organization_id = ?";
+      params.push(organizationId);
+    }
     if (status) {
       query += " AND LOWER(q.status) = LOWER(?)";
       params.push(status);
@@ -1031,35 +1200,30 @@ const quotationStore = {
       });
     }
 
-    quotations = result;
+    if (!organizationId) {
+      quotations = result;
+    }
     return result;
   },
 
-  async getById(id) {
+  async getById(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    // Resolve by canonical id or fallback by quote_number
-    let q = await get(
-      `SELECT q.*, 
-              c.name as cust_name,
-              c.company as cust_company
-       FROM quotations q
-       LEFT JOIN customers c ON q.customer_id = c.id
-       WHERE q.id = ?`,
-      [id]
-    );
+    let query = `
+      SELECT q.*, 
+             c.name as cust_name,
+             c.company as cust_company
+      FROM quotations q
+      LEFT JOIN customers c ON q.customer_id = c.id
+      WHERE (q.id = ? OR q.quote_number = ?)
+    `;
+    const params = [id, id];
 
-    if (!q) {
-      q = await get(
-        `SELECT q.*, 
-                c.name as cust_name,
-                c.company as cust_company
-         FROM quotations q
-         LEFT JOIN customers c ON q.customer_id = c.id
-         WHERE q.quote_number = ?`,
-        [id]
-      );
+    if (organizationId) {
+      query += " AND q.organization_id = ?";
+      params.push(organizationId);
     }
 
+    const q = await get(query, params);
     if (!q) return null;
 
     const items = await all(
@@ -1119,7 +1283,11 @@ const quotationStore = {
       throw new Error(`Client with ID "${data.customerId}" does not exist in the database.`);
     }
 
-    const orgId = customer.organization_id;
+    if (data.organizationId && customer.organization_id !== data.organizationId) {
+      throw new Error(`Client with ID "${data.customerId}" does not belong to your organization.`);
+    }
+
+    const orgId = data.organizationId || customer.organization_id;
 
     // 2. Validate items and calculate financial totals
     if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
@@ -1198,44 +1366,55 @@ const quotationStore = {
     });
 
     await this.syncFromDatabase();
-    return await this.getById(quoteId);
+    return await this.getById(quoteId, orgId);
   },
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, organizationId = null) {
     await ensureDatabaseSeeded();
     if (!["Draft", "Sent", "Accepted", "Declined"].includes(status)) {
       throw new Error(`Invalid status: ${status}. Must be Draft, Sent, Accepted, or Declined.`);
     }
 
-    // Resolve canonical SQLite ID
-    let quote = await get("SELECT id FROM quotations WHERE id = ?", [id]);
-    if (!quote) {
-      quote = await get("SELECT id FROM quotations WHERE quote_number = ?", [id]);
+    let quoteSql = "SELECT id, organization_id FROM quotations WHERE (id = ? OR quote_number = ?)";
+    let quoteParams = [id, id];
+    if (organizationId) {
+      quoteSql += " AND organization_id = ?";
+      quoteParams.push(organizationId);
     }
+
+    const quote = await get(quoteSql, quoteParams);
     if (!quote) {
       return null;
     }
 
     const now = new Date().toISOString();
-    const updateRes = await run(
-      "UPDATE quotations SET status = ?, updated_at = ? WHERE id = ?",
-      [status, now, quote.id]
-    );
+    let updateSql = "UPDATE quotations SET status = ?, updated_at = ? WHERE id = ?";
+    let updateParams = [status, now, quote.id];
+    if (organizationId) {
+      updateSql += " AND organization_id = ?";
+      updateParams.push(organizationId);
+    }
+
+    const updateRes = await run(updateSql, updateParams);
 
     if (!updateRes || updateRes.changes === 0) {
       throw new Error(`Failed to update quotation ${id} status in SQLite.`);
     }
 
     await this.syncFromDatabase();
-    return await this.getById(quote.id);
+    return await this.getById(quote.id, organizationId);
   },
 
-  async delete(id) {
+  async delete(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    let quote = await get("SELECT id FROM quotations WHERE id = ?", [id]);
-    if (!quote) {
-      quote = await get("SELECT id FROM quotations WHERE quote_number = ?", [id]);
+    let quoteSql = "SELECT id, organization_id FROM quotations WHERE (id = ? OR quote_number = ?)";
+    let quoteParams = [id, id];
+    if (organizationId) {
+      quoteSql += " AND organization_id = ?";
+      quoteParams.push(organizationId);
     }
+
+    const quote = await get(quoteSql, quoteParams);
     if (!quote) return false;
 
     await runTransaction(async (tx) => {
@@ -1303,7 +1482,7 @@ const ticketStore = {
     }
   },
 
-  async getAll({ status = "", priority = "", customerId = "" } = {}) {
+  async getAll({ status = "", priority = "", customerId = "", organizationId = null } = {}) {
     await ensureDatabaseSeeded();
     let query = `
       SELECT t.*, 
@@ -1317,6 +1496,10 @@ const ticketStore = {
     `;
     const params = [];
 
+    if (organizationId) {
+      query += " AND t.organization_id = ?";
+      params.push(organizationId);
+    }
     if (status) {
       query += " AND LOWER(t.status) = LOWER(?)";
       params.push(status);
@@ -1363,38 +1546,32 @@ const ticketStore = {
       });
     }
 
-    tickets = result;
+    if (!organizationId) {
+      tickets = result;
+    }
     return result;
   },
 
-  async getById(id) {
+  async getById(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    let t = await get(
-      `SELECT t.*, 
-              c.name as cust_name,
-              c.company as cust_company,
-              COALESCE(u.name, 'Support Team') as assigned_name
-       FROM tickets t
-       LEFT JOIN customers c ON t.customer_id = c.id
-       LEFT JOIN users u ON t.assigned_to = u.id
-       WHERE t.id = ?`,
-      [id]
-    );
+    let query = `
+      SELECT t.*, 
+             c.name as cust_name,
+             c.company as cust_company,
+             COALESCE(u.name, 'Support Team') as assigned_name
+      FROM tickets t
+      LEFT JOIN customers c ON t.customer_id = c.id
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE (t.id = ? OR t.ticket_number = ?)
+    `;
+    const params = [id, id];
 
-    if (!t) {
-      t = await get(
-        `SELECT t.*, 
-                c.name as cust_name,
-                c.company as cust_company,
-                COALESCE(u.name, 'Support Team') as assigned_name
-         FROM tickets t
-         LEFT JOIN customers c ON t.customer_id = c.id
-         LEFT JOIN users u ON t.assigned_to = u.id
-         WHERE t.ticket_number = ?`,
-        [id]
-      );
+    if (organizationId) {
+      query += " AND t.organization_id = ?";
+      params.push(organizationId);
     }
 
+    let t = await get(query, params);
     if (!t) return null;
 
     const comments = await all(
@@ -1429,8 +1606,11 @@ const ticketStore = {
 
   async create(data) {
     await ensureDatabaseSeeded();
-    const org = await get("SELECT id FROM organizations LIMIT 1");
-    const orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    let orgId = data.organizationId;
+    if (!orgId) {
+      const org = await get("SELECT id FROM organizations LIMIT 1");
+      orgId = org ? org.id : "org-mtnwl7km-s2wh5";
+    }
 
     let validCustomerId = null;
     if (data.customerId) {
@@ -1499,78 +1679,114 @@ const ticketStore = {
     );
 
     await this.syncFromDatabase();
-    return await this.getById(ticketId);
+    return await this.getById(ticketId, orgId);
   },
 
-  async updateStatus(id, status) {
+  async updateStatus(id, status, organizationId = null) {
     await ensureDatabaseSeeded();
     if (!["Open", "In Progress", "Waiting", "Resolved", "Closed"].includes(status)) {
       throw new Error(`Invalid ticket status: ${status}`);
     }
 
-    let ticket = await get("SELECT id FROM tickets WHERE id = ?", [id]);
-    if (!ticket) {
-      ticket = await get("SELECT id FROM tickets WHERE ticket_number = ?", [id]);
+    let ticketSql = "SELECT id, organization_id FROM tickets WHERE (id = ? OR ticket_number = ?)";
+    let ticketParams = [id, id];
+    if (organizationId) {
+      ticketSql += " AND organization_id = ?";
+      ticketParams.push(organizationId);
     }
+
+    const ticket = await get(ticketSql, ticketParams);
     if (!ticket) return null;
 
     const now = new Date().toISOString();
-    const res = await run("UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?", [status, now, ticket.id]);
+    let updateSql = "UPDATE tickets SET status = ?, updated_at = ? WHERE id = ?";
+    let updateParams = [status, now, ticket.id];
+    if (organizationId) {
+      updateSql += " AND organization_id = ?";
+      updateParams.push(organizationId);
+    }
+
+    const res = await run(updateSql, updateParams);
     if (!res || res.changes === 0) {
       throw new Error(`Failed to update ticket ${id} status in SQLite.`);
     }
 
     await this.syncFromDatabase();
-    return await this.getById(ticket.id);
+    return await this.getById(ticket.id, organizationId);
   },
 
-  async update(id, data) {
+  async update(id, data, organizationId = null) {
     await ensureDatabaseSeeded();
-    let ticket = await get("SELECT id FROM tickets WHERE id = ?", [id]);
-    if (!ticket) ticket = await get("SELECT id FROM tickets WHERE ticket_number = ?", [id]);
+    let ticketSql = "SELECT id, organization_id FROM tickets WHERE (id = ? OR ticket_number = ?)";
+    let ticketParams = [id, id];
+    if (organizationId) {
+      ticketSql += " AND organization_id = ?";
+      ticketParams.push(organizationId);
+    }
+
+    const ticket = await get(ticketSql, ticketParams);
     if (!ticket) return null;
 
     const now = new Date().toISOString();
-    await run(
-      `UPDATE tickets SET
+    let updateSql = `UPDATE tickets SET
          title = COALESCE(?, title),
          description = COALESCE(?, description),
          priority = COALESCE(?, priority),
          status = COALESCE(?, status),
          updated_at = ?
-       WHERE id = ?`,
-      [data.title, data.description, data.priority, data.status, now, ticket.id]
-    );
+       WHERE id = ?`;
+    let updateParams = [data.title, data.description, data.priority, data.status, now, ticket.id];
+    if (organizationId) {
+      updateSql += " AND organization_id = ?";
+      updateParams.push(organizationId);
+    }
+
+    await run(updateSql, updateParams);
 
     await this.syncFromDatabase();
-    return await this.getById(ticket.id);
+    return await this.getById(ticket.id, organizationId);
   },
 
-  async addComment(id, { author = "Staff", text }) {
+  async addComment(id, { author = "Staff", text, userId = null }, organizationId = null) {
     await ensureDatabaseSeeded();
-    let ticket = await get("SELECT id FROM tickets WHERE id = ?", [id]);
-    if (!ticket) ticket = await get("SELECT id FROM tickets WHERE ticket_number = ?", [id]);
+    let ticketSql = "SELECT id, organization_id FROM tickets WHERE (id = ? OR ticket_number = ?)";
+    let ticketParams = [id, id];
+    if (organizationId) {
+      ticketSql += " AND organization_id = ?";
+      ticketParams.push(organizationId);
+    }
+
+    const ticket = await get(ticketSql, ticketParams);
     if (!ticket) return null;
 
-    const user = await get("SELECT id FROM users WHERE name = ? LIMIT 1", [author]);
-    const userId = user ? user.id : null;
+    let authorUserId = userId;
+    if (!authorUserId && author) {
+      const user = await get("SELECT id FROM users WHERE name = ? LIMIT 1", [author]);
+      authorUserId = user ? user.id : null;
+    }
     const commentId = generateId("comm");
     const now = new Date().toISOString();
 
     await run(
       `INSERT INTO ticket_comments (id, ticket_id, user_id, comment, created_at)
        VALUES (?, ?, ?, ?, ?)`,
-      [commentId, ticket.id, userId, text.trim(), now]
+      [commentId, ticket.id, authorUserId, text.trim(), now]
     );
 
     await this.syncFromDatabase();
-    return await this.getById(ticket.id);
+    return await this.getById(ticket.id, organizationId);
   },
 
-  async delete(id) {
+  async delete(id, organizationId = null) {
     await ensureDatabaseSeeded();
-    let ticket = await get("SELECT id FROM tickets WHERE id = ?", [id]);
-    if (!ticket) ticket = await get("SELECT id FROM tickets WHERE ticket_number = ?", [id]);
+    let ticketSql = "SELECT id, organization_id FROM tickets WHERE (id = ? OR ticket_number = ?)";
+    let ticketParams = [id, id];
+    if (organizationId) {
+      ticketSql += " AND organization_id = ?";
+      ticketParams.push(organizationId);
+    }
+
+    const ticket = await get(ticketSql, ticketParams);
     if (!ticket) return false;
 
     await runTransaction(async (tx) => {
@@ -1588,16 +1804,16 @@ const ticketStore = {
 // 5. Executive Dashboard Aggregation Store
 // -------------------------------------------------------------
 const dashboardStore = {
-  async getSummary() {
+  async getSummary(organizationId = null) {
     await ensureDatabaseSeeded();
 
-    const allCusts = await customerStore.getAll();
+    const allCusts = await customerStore.getAll({ organizationId });
     const totalLeads = allCusts.filter(c => c.type === "lead").length;
     const totalCustomers = allCusts.filter(c => c.type === "customer").length;
 
-    const pipelineStats = await dealStore.getStats();
+    const pipelineStats = await dealStore.getStats(organizationId);
 
-    const allQuotes = await quotationStore.getAll();
+    const allQuotes = await quotationStore.getAll({ organizationId });
     const totalQuotations = allQuotes.length;
     const acceptedQuotationsValue = allQuotes
       .filter(q => q.status === "Accepted")
@@ -1606,11 +1822,11 @@ const dashboardStore = {
       .filter(q => q.status === "Sent" || q.status === "Draft")
       .reduce((sum, q) => sum + q.grandTotal, 0);
 
-    const allTickets = await ticketStore.getAll();
+    const allTickets = await ticketStore.getAll({ organizationId });
     const openTickets = allTickets.filter(t => t.status === "Open" || t.status === "In Progress").length;
     const urgentTickets = allTickets.filter(t => t.priority === "Urgent" || t.priority === "High").length;
 
-    const allDeals = await dealStore.getAll();
+    const allDeals = await dealStore.getAll({ organizationId });
 
     // Recent activity feed across the 4 modules
     const activities = [

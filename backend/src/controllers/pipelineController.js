@@ -7,17 +7,38 @@ const ALLOWED_STAGES = [
 
 const getAllDeals = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { stage, customerId } = req.query;
-    const data = await dealStore.getAll({ stage, customerId });
+    const data = await dealStore.getAll({ stage, customerId, organizationId });
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch deals", error: error.message });
   }
 };
 
+const getStats = async (req, res) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const stats = await dealStore.getStats(organizationId);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch pipeline stats", error: error.message });
+  }
+};
+
 const getDealById = async (req, res) => {
   try {
-    const deal = await dealStore.getById(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const deal = await dealStore.getById(req.params.id, organizationId);
     if (!deal) {
       return res.status(404).json({ message: "Deal not found" });
     }
@@ -29,6 +50,10 @@ const getDealById = async (req, res) => {
 
 const createDeal = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { title, customerId, customerName, value, stage, expectedCloseDate, notes } = req.body;
 
     if (!title || !title.trim()) {
@@ -48,7 +73,8 @@ const createDeal = async (req, res) => {
       value: numericValue,
       stage: validatedStage,
       expectedCloseDate: expectedCloseDate || "",
-      notes: notes ? notes.trim() : ""
+      notes: notes ? notes.trim() : "",
+      organizationId
     });
 
     res.status(201).json(newDeal);
@@ -59,7 +85,11 @@ const createDeal = async (req, res) => {
 
 const updateDeal = async (req, res) => {
   try {
-    const existing = await dealStore.getById(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const existing = await dealStore.getById(req.params.id, organizationId);
     if (!existing) {
       return res.status(404).json({ message: "Deal not found" });
     }
@@ -81,7 +111,7 @@ const updateDeal = async (req, res) => {
     if (expectedCloseDate !== undefined) payload.expectedCloseDate = expectedCloseDate;
     if (notes !== undefined) payload.notes = notes.trim();
 
-    const updated = await dealStore.update(req.params.id, payload);
+    const updated = await dealStore.update(req.params.id, payload, organizationId);
     res.json(updated);
   } catch (error) {
     res.status(500).json({ message: "Failed to update deal", error: error.message });
@@ -90,6 +120,10 @@ const updateDeal = async (req, res) => {
 
 const updateDealStage = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { stage } = req.body;
     if (!stage || !ALLOWED_STAGES.includes(stage)) {
       return res.status(400).json({
@@ -97,7 +131,7 @@ const updateDealStage = async (req, res) => {
       });
     }
 
-    const updated = await dealStore.updateStage(req.params.id, stage);
+    const updated = await dealStore.updateStage(req.params.id, stage, organizationId);
     if (!updated) {
       return res.status(404).json({ message: "Deal not found" });
     }
@@ -110,22 +144,17 @@ const updateDealStage = async (req, res) => {
 
 const deleteDeal = async (req, res) => {
   try {
-    const success = await dealStore.delete(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const success = await dealStore.delete(req.params.id, organizationId);
     if (!success) {
       return res.status(404).json({ message: "Deal not found" });
     }
     res.json({ message: "Deal deleted successfully", id: req.params.id });
   } catch (error) {
     res.status(500).json({ message: "Failed to delete deal", error: error.message });
-  }
-};
-
-const getStats = async (req, res) => {
-  try {
-    const stats = await dealStore.getStats();
-    res.json(stats);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to fetch pipeline stats", error: error.message });
   }
 };
 

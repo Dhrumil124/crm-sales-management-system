@@ -2,8 +2,12 @@ const { customerStore } = require("../services/storage");
 
 const getAllCustomers = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { search, type, status } = req.query;
-    const data = await customerStore.getAll({ search, type, status });
+    const data = await customerStore.getAll({ search, type, status, organizationId });
     res.json(data);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch CRM contacts", error: error.message });
@@ -12,7 +16,11 @@ const getAllCustomers = async (req, res) => {
 
 const getCustomerById = async (req, res) => {
   try {
-    const customer = await customerStore.getById(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const customer = await customerStore.getById(req.params.id, organizationId);
     if (!customer) {
       return res.status(404).json({ message: "Contact not found" });
     }
@@ -24,6 +32,10 @@ const getCustomerById = async (req, res) => {
 
 const createCustomer = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { name, email, phone, company, type, status, notes } = req.body;
 
     if (!name || !name.trim()) {
@@ -46,7 +58,8 @@ const createCustomer = async (req, res) => {
       company: company ? company.trim() : "",
       type: validatedType,
       status: validatedStatus,
-      notes: notes ? notes.trim() : ""
+      notes: notes ? notes.trim() : "",
+      organizationId
     });
 
     res.status(201).json(newCustomer);
@@ -57,8 +70,12 @@ const createCustomer = async (req, res) => {
 
 const updateCustomer = async (req, res) => {
   try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
     const { name, email, phone, company, type, status, notes } = req.body;
-    const existing = await customerStore.getById(req.params.id);
+    const existing = await customerStore.getById(req.params.id, organizationId);
     if (!existing) {
       return res.status(404).json({ message: "Contact not found" });
     }
@@ -71,7 +88,7 @@ const updateCustomer = async (req, res) => {
       ...(type && { type: type === "customer" ? "customer" : "lead" }),
       ...(status && { status }),
       ...(notes !== undefined && { notes: notes.trim() })
-    });
+    }, organizationId);
 
     res.json(updated);
   } catch (error) {
@@ -81,7 +98,11 @@ const updateCustomer = async (req, res) => {
 
 const deleteCustomer = async (req, res) => {
   try {
-    const success = await customerStore.delete(req.params.id);
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+    const success = await customerStore.delete(req.params.id, organizationId);
     if (!success) {
       return res.status(404).json({ message: "Contact not found" });
     }
