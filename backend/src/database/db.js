@@ -151,6 +151,17 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email)`);
 
+  // Safe non-destructive check for assigned_to column on leads
+  db.all("PRAGMA table_info(leads)", (err, columns) => {
+    if (!err && columns && !columns.some(col => col.name === "assigned_to")) {
+      db.run("ALTER TABLE leads ADD COLUMN assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL", () => {
+        db.run("CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to)");
+      });
+    } else {
+      db.run("CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to)");
+    }
+  });
+
   // Lead Notes indexes
   db.run(`CREATE INDEX IF NOT EXISTS idx_lead_notes_lead_id ON lead_notes(lead_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_lead_notes_author_id ON lead_notes(author_id)`);

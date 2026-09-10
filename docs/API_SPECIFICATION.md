@@ -255,6 +255,180 @@ All CRM endpoints are scoped to the authenticated user's `organizationId`.
 
 ---
 
+## 4.B Lead Management Routes
+
+All Lead endpoints are scoped to the authenticated user's `organizationId`.
+
+### 4.6 Create Lead
+- **Endpoint:** `POST /api/crm/leads`
+- **Auth Required:** Yes
+- **Description:** Creates a new prospective lead in the organization with status defaulting to `New`.
+- **Request Body:**
+```json
+{
+  "name": "Sarah Connor",
+  "email": "sarah@cyberdyne.io",
+  "phone": "+1 555 987 6543",
+  "company": "Cyberdyne Systems",
+  "status": "New"
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "id": "lead-xxx",
+  "organizationId": "org-xxx",
+  "name": "Sarah Connor",
+  "email": "sarah@cyberdyne.io",
+  "phone": "+1 555 987 6543",
+  "company": "Cyberdyne Systems",
+  "status": "New",
+  "assignedTo": null,
+  "createdAt": "2026-09-10T12:00:00.000Z",
+  "updatedAt": "2026-09-10T12:00:00.000Z"
+}
+```
+
+### 4.7 List Leads with Pagination
+- **Endpoint:** `GET /api/crm/leads`
+- **Auth Required:** Yes
+- **Query Parameters (Optional):**
+  - `page`: Page number (integer >= 1, default: `1`)
+  - `limit`: Items per page (integer 1-100, default: `10`)
+  - `status`: Filter by status (`New`, `Contacted`, `Qualified`, `Lost`, `Active`, `Inactive`, `Converted`)
+  - `search`: Search query matching name, company, email, or phone
+- **Response (200 OK):**
+```json
+{
+  "leads": [
+    {
+      "id": "lead-xxx",
+      "organizationId": "org-xxx",
+      "name": "Sarah Connor",
+      "email": "sarah@cyberdyne.io",
+      "phone": "+1 555 987 6543",
+      "company": "Cyberdyne Systems",
+      "status": "New",
+      "assignedTo": null,
+      "createdAt": "2026-09-10T12:00:00.000Z",
+      "updatedAt": "2026-09-10T12:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
+  }
+}
+```
+
+### 4.8 Get Lead by ID
+- **Endpoint:** `GET /api/crm/leads/:id`
+- **Auth Required:** Yes
+- **Response (200 OK):** Returns single lead record with assigned user details if present.
+- **Error Response (404 Not Found):** If lead does not exist or belongs to another tenant.
+
+### 4.9 Update Lead
+- **Endpoint:** `PATCH /api/crm/leads/:id`
+- **Auth Required:** Yes
+- **Request Body:** Partial lead fields to update:
+```json
+{
+  "status": "Contacted",
+  "company": "Cyberdyne Global"
+}
+```
+- **Response (200 OK):** Returns updated lead object.
+
+### 4.10 Delete Lead
+- **Endpoint:** `DELETE /api/crm/leads/:id`
+- **Auth Required:** Yes
+- **Description:** Deletes the lead. Linked records in `lead_notes` and `lead_communications` cascade delete automatically.
+- **Response (200 OK):**
+```json
+{
+  "message": "Lead deleted successfully",
+  "id": "lead-xxx"
+}
+```
+
+### 4.11 Add Lead Note
+- **Endpoint:** `POST /api/crm/leads/:id/notes`
+- **Auth Required:** Yes
+- **Description:** Appends a note to the lead's history, automatically linking the authenticated user as author.
+- **Request Body:**
+```json
+{
+  "content": "Initial introductory call completed. Client interested in AI integration."
+}
+```
+- **Response (201 Created):**
+```json
+{
+  "id": "lnote-xxx",
+  "leadId": "lead-xxx",
+  "author": {
+    "id": "user-xxx",
+    "name": "Dhrumil Patel",
+    "email": "boy067283@gmail.com"
+  },
+  "content": "Initial introductory call completed. Client interested in AI integration.",
+  "createdAt": "2026-09-10T12:05:00.000Z",
+  "updatedAt": "2026-09-10T12:05:00.000Z"
+}
+```
+
+### 4.12 Get Lead Notes
+- **Endpoint:** `GET /api/crm/leads/:id/notes`
+- **Auth Required:** Yes
+- **Response (200 OK):**
+```json
+[
+  {
+    "id": "lnote-xxx",
+    "leadId": "lead-xxx",
+    "author": {
+      "id": "user-xxx",
+      "name": "Dhrumil Patel",
+      "email": "boy067283@gmail.com"
+    },
+    "content": "Initial introductory call completed.",
+    "createdAt": "2026-09-10T12:05:00.000Z",
+    "updatedAt": "2026-09-10T12:05:00.000Z"
+  }
+]
+```
+
+### 4.13 Assign Lead to Staff
+- **Endpoint:** `PATCH /api/crm/leads/:id/assign`
+- **Auth Required:** Yes
+- **Description:** Assigns the lead to a staff member belonging to the same tenant organization. Cross-tenant assignment is strictly rejected.
+- **Request Body:**
+```json
+{
+  "assignedTo": "user-xxx"
+}
+```
+- **Response (200 OK):** Returns updated lead object with populated `assignedTo` object:
+```json
+{
+  "id": "lead-xxx",
+  "name": "Sarah Connor",
+  "status": "New",
+  "assignedTo": {
+    "id": "user-xxx",
+    "name": "Dhrumil Patel",
+    "email": "boy067283@gmail.com"
+  },
+  "updatedAt": "2026-09-10T12:10:00.000Z"
+}
+```
+
+---
+
 ## 5. Sales Pipeline Routes
 
 ### 5.1 List All Deals

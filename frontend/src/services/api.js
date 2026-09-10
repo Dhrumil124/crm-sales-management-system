@@ -98,6 +98,26 @@ export const api = {
     delete: (id) => request(`/crm/customers/${id}`, { method: "DELETE" })
   },
 
+  // 1.1 Lead Management (Day 6)
+  leads: {
+    getAll: (params = {}) => {
+      const query = new URLSearchParams();
+      if (params.page) query.append("page", params.page);
+      if (params.limit) query.append("limit", params.limit);
+      if (params.status) query.append("status", params.status);
+      if (params.search) query.append("search", params.search);
+      const qs = query.toString();
+      return request(`/crm/leads${qs ? `?${qs}` : ""}`);
+    },
+    getById: (id) => request(`/crm/leads/${id}`),
+    create: (data) => request("/crm/leads", { method: "POST", body: JSON.stringify(data) }),
+    update: (id, data) => request(`/crm/leads/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    delete: (id) => request(`/crm/leads/${id}`, { method: "DELETE" }),
+    getNotes: (id) => request(`/crm/leads/${id}/notes`),
+    addNote: (id, data) => request(`/crm/leads/${id}/notes`, { method: "POST", body: JSON.stringify(data) }),
+    assign: (id, assignedTo) => request(`/crm/leads/${id}/assign`, { method: "PATCH", body: JSON.stringify({ assignedTo }) })
+  },
+
   // 2. Sales Pipeline (Deals)
   pipeline: {
     getAll: (params = {}) => {
