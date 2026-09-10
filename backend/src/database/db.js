@@ -9,8 +9,10 @@ const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error("Failed to connect to SQLite database:", err.message);
   } else {
-    // Enable Foreign Key constraint support
+    // Enable Foreign Key constraint support & WAL mode for concurrency
     db.run("PRAGMA foreign_keys = ON;");
+    db.run("PRAGMA journal_mode = WAL;");
+    db.run("PRAGMA busy_timeout = 5000;");
   }
 });
 
@@ -179,6 +181,32 @@ db.serialize(() => {
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_stage_id ON deals(stage_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_lead_id ON deals(lead_id)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_deals_close_date ON deals(expected_close_date)`);
+
+  // -------------------------------------------------------------
+  // Day 7 Table: Deal Stage History (Audit Trail for Pipeline Stage Movements)
+  // -------------------------------------------------------------
+  db.run(`
+    CREATE TABLE IF NOT EXISTS deal_stage_history (
+      id TEXT PRIMARY KEY,
+      deal_id TEXT NOT NULL,
+      organization_id TEXT NOT NULL,
+      from_stage_id TEXT,
+      from_stage_name TEXT,
+      to_stage_id TEXT NOT NULL,
+      to_stage_name TEXT NOT NULL,
+      user_id TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE,
+      FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
+      FOREIGN KEY (from_stage_id) REFERENCES pipeline_stages(id) ON DELETE SET NULL,
+      FOREIGN KEY (to_stage_id) REFERENCES pipeline_stages(id) ON DELETE RESTRICT,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_deal_stage_hist_deal ON deal_stage_history(deal_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_deal_stage_hist_org ON deal_stage_history(organization_id)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_deal_stage_hist_created ON deal_stage_history(created_at)`);
 
   // -------------------------------------------------------------
   // Day 4 Tables: Customers, Quotations, Quotation Items, Tickets,

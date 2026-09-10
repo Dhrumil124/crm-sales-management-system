@@ -23,6 +23,8 @@ lerna-debug.log*
 # Local files
 *.local
 *.sqlite
+*.sqlite-wal
+*.sqlite-shm
 *.sqlite3
 *.db
 

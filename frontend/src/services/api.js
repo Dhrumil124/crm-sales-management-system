@@ -120,14 +120,18 @@ export const api = {
 
   // 2. Sales Pipeline (Deals)
   pipeline: {
-    getAll: (params = {}) => {
+    getAll: async (params = {}) => {
       const query = new URLSearchParams();
+      if (params.page) query.append("page", params.page);
+      if (params.limit) query.append("limit", params.limit);
       if (params.stage) query.append("stage", params.stage);
+      if (params.search) query.append("search", params.search);
       if (params.customerId) query.append("customerId", params.customerId);
       const qs = query.toString();
-      return request(`/pipeline/deals${qs ? `?${qs}` : ""}`);
+      const res = await request(`/pipeline/deals${qs ? `?${qs}` : ""}`);
+      return Array.isArray(res) ? res : (res.deals || []);
     },
-    getStats: () => request("/pipeline/deals/stats"),
+    getStats: () => request("/pipeline/stats"),
     getById: (id) => request(`/pipeline/deals/${id}`),
     create: (data) => request("/pipeline/deals", { method: "POST", body: JSON.stringify(data) }),
     update: (id, data) => request(`/pipeline/deals/${id}`, { method: "PUT", body: JSON.stringify(data) }),

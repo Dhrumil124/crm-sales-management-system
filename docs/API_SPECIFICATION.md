@@ -431,40 +431,60 @@ All Lead endpoints are scoped to the authenticated user's `organizationId`.
 
 ## 5. Sales Pipeline Routes
 
-### 5.1 List All Deals
+### 5.1 List All Deals (Paginated & Filtered)
 - **Endpoint:** `GET /api/pipeline/deals`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
 - **Query Parameters (Optional):**
-  - `stage`: Filter by stage name
-  - `search`: Filter by deal title or client name
+  - `page`: Page number (integer >= 1, default `1`)
+  - `limit`: Records per page (integer 1 to 100, default `20`)
+  - `stage`: Filter by stage name, alias, or stage ID
+  - `search`: Case-insensitive search on title, client name, or company
+  - `customerId`: Filter by customer/lead ID
 - **Response (200 OK):**
 ```json
-[
-  {
-    "id": "deal-1",
-    "title": "Enterprise CRM Licensing Expansion",
-    "client": "John Miller",
-    "company": "Apex Tech Solutions",
-    "customerId": "cust-1",
-    "value": 45000,
-    "stage": "Closed Won",
-    "probability": 100,
-    "expectedCloseDate": "2026-09-15",
-    "priority": "High",
-    "notes": "Contract signed for 50 additional user seats."
+{
+  "deals": [
+    {
+      "id": "deal-1",
+      "organizationId": "org-mtnwupyk-lujdx",
+      "title": "Enterprise CRM Licensing Expansion",
+      "customerId": "cust-1",
+      "customerName": "John Miller (Apex Tech Solutions)",
+      "client": "John Miller",
+      "company": "Apex Tech Solutions",
+      "value": 45000,
+      "stageId": "stage-mto8z2jg-dnzfm",
+      "stage": "Closed Won",
+      "stageOrder": 5,
+      "stageColor": "border-t-emerald-500",
+      "expectedCloseDate": "2026-09-15",
+      "notes": "Contract signed for 50 additional user seats.",
+      "createdAt": "2026-09-08T10:00:00.000Z",
+      "updatedAt": "2026-09-10T09:30:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 7,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
   }
-]
+}
 ```
 
 ### 5.2 Get Deal Pipeline Statistics
-- **Endpoint:** `GET /api/pipeline/deals/stats`
-- **Auth Required:** Yes
+- **Endpoint:** `GET /api/pipeline/stats` (also supports `GET /api/pipeline/deals/stats`)
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
 - **Response (200 OK):**
 ```json
 {
   "totalDeals": 7,
   "totalValue": 190700,
-  "avgDealValue": 27242.86,
+  "totalActiveValue": 117700,
+  "totalWonValue": 73000,
+  "totalLostValue": 0,
   "stageCounts": {
     "Lead In": 1,
     "Contact Made": 2,
@@ -481,33 +501,42 @@ All Lead endpoints are scoped to the authenticated user's `organizationId`.
     "Closed Won": 73000,
     "Closed Lost": 0
   },
-  "wonCount": 2,
-  "wonValue": 73000,
-  "winRate": 28.57,
-  "totalActiveValue": 117700
+  "byStage": {
+    "Lead": { "count": 1, "totalValue": 8500 },
+    "Contacted": { "count": 2, "totalValue": 41200 },
+    "Proposal": { "count": 1, "totalValue": 50000 },
+    "Negotiation": { "count": 1, "totalValue": 18000 },
+    "Won": { "count": 2, "totalValue": 73000 },
+    "Lost": { "count": 0, "totalValue": 0 }
+  },
+  "winRate": 100,
+  "avgDealValue": 27242.86
 }
 ```
 
 ### 5.3 Get Deal by ID
 - **Endpoint:** `GET /api/pipeline/deals/:id`
-- **Auth Required:** Yes
-- **Response (200 OK):** Returns single deal object.
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
+- **Response (200 OK):** Returns single formatted deal object.
 
 ### 5.4 Create Deal
 - **Endpoint:** `POST /api/pipeline/deals`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
+- **Validation Rules:**
+  - `title`: Required non-empty string (max 255 chars).
+  - `value`: Optional non-negative numeric (defaults to `0`).
+  - `customerId`: Optional. Must belong to the authenticated organization (cross-tenant reference returns 400).
+  - `stage`: Optional stage name or ID. Defaults to the first pipeline stage.
+  - `expectedCloseDate`: Optional date string.
+  - `notes`: Optional string (max 4000 chars).
 - **Request Body:**
 ```json
 {
   "title": "Cloud Infrastructure Expansion",
-  "client": "John Miller",
-  "company": "Apex Tech Solutions",
   "customerId": "cust-1",
   "value": 35000,
   "stage": "Proposal Sent",
-  "probability": 60,
   "expectedCloseDate": "2026-10-15",
-  "priority": "High",
   "notes": "Proposal pending executive review."
 }
 ```
@@ -515,29 +544,59 @@ All Lead endpoints are scoped to the authenticated user's `organizationId`.
 
 ### 5.5 Update Deal Full Details
 - **Endpoint:** `PUT /api/pipeline/deals/:id`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
 - **Request Body:** Partial or complete deal fields.
 - **Response (200 OK):** Returns updated deal object.
 
-### 5.6 Update Deal Kanban Stage
+### 5.6 Update Deal Kanban Stage & Audit History
 - **Endpoint:** `PATCH /api/pipeline/deals/:id/stage`
-- **Auth Required:** Yes
-- **Description:** Used by Kanban drag-and-drop workflow. Automatically normalizes aliases (e.g. `Won` -> `Closed Won`, `Lost` -> `Closed Lost`).
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
+- **Description:** Updates `deals.stage_id` and records an atomic audit history record in `deal_stage_history`. If moving to the current stage, skips duplicate history record creation.
 - **Request Body:**
 ```json
 {
-  "stage": "Won"
+  "stage": "Closed Won"
 }
 ```
-- **Response (200 OK):** Returns updated deal object with new stage and probability.
+- **Response (200 OK):** Returns updated deal object with new stage.
 
-### 5.7 Delete Deal
-- **Endpoint:** `DELETE /api/pipeline/deals/:id`
-- **Auth Required:** Yes
+### 5.7 Get Deal Stage Movement History
+- **Endpoint:** `GET /api/pipeline/deals/:id/history`
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
 - **Response (200 OK):**
 ```json
 {
-  "message": "Deal deleted successfully"
+  "history": [
+    {
+      "id": "dhist-mtv8t-12345",
+      "dealId": "deal-1",
+      "fromStage": {
+        "id": "stage-4",
+        "name": "Negotiation"
+      },
+      "toStage": {
+        "id": "stage-5",
+        "name": "Closed Won"
+      },
+      "user": {
+        "id": "user-1",
+        "name": "Admin User",
+        "email": "admin@example.com"
+      },
+      "createdAt": "2026-09-10T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### 5.8 Delete Deal
+- **Endpoint:** `DELETE /api/pipeline/deals/:id`
+- **Auth Required:** Yes (scoped to `req.user.organizationId`)
+- **Response (200 OK):**
+```json
+{
+  "message": "Deal deleted successfully",
+  "id": "deal-1"
 }
 ```
 

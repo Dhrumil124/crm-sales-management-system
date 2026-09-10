@@ -769,323 +769,50 @@ const customerStore = {
 // -------------------------------------------------------------
 // 2. Sales Pipeline (Deals) Storage Interface
 // -------------------------------------------------------------
+const dealStoreModule = require("./dealStore");
+
 const dealStore = {
   async syncFromDatabase() {
-    await ensureDatabaseSeeded();
-    try {
-      const dbDeals = await all(`
-        SELECT d.*, 
-               COALESCE(c.name, l.name, '') as client_name,
-               COALESCE(c.company, l.company, '') as client_company,
-               s.name as stage_name
-        FROM deals d
-        LEFT JOIN customers c ON d.lead_id = c.id
-        LEFT JOIN leads l ON d.lead_id = l.id
-        LEFT JOIN pipeline_stages s ON d.stage_id = s.id
-        ORDER BY d.created_at DESC
-      `);
-
-      deals = dbDeals.map(d => ({
-        id: d.id,
-        title: d.title,
-        customerId: d.lead_id || "",
-        customerName: formatCustomerDisplay(d.client_name, d.client_company),
-        value: Number(d.value) || 0,
-        stage: d.stage_name || "Lead In",
-        expectedCloseDate: d.expected_close_date || "",
-        notes: d.notes || "",
-        createdAt: d.created_at,
-        updatedAt: d.updated_at
-      }));
-    } catch (err) {
-      console.error("dealStore.syncFromDatabase error:", err);
-    }
+    return dealStoreModule.getAll();
   },
 
-  async getAll({ stage = "", customerId = "", organizationId = null } = {}) {
-    await ensureDatabaseSeeded();
-    let query = `
-      SELECT d.*, 
-             COALESCE(c.name, l.name, '') as client_name,
-             COALESCE(c.company, l.company, '') as client_company,
-             s.name as stage_name
-      FROM deals d
-      LEFT JOIN customers c ON d.lead_id = c.id
-      LEFT JOIN leads l ON d.lead_id = l.id
-      LEFT JOIN pipeline_stages s ON d.stage_id = s.id
-      WHERE 1=1
-    `;
-    const params = [];
+  async getAll(params = {}) {
+    return dealStoreModule.getAll(params);
+  },
 
-    if (organizationId) {
-      query += ` AND d.organization_id = ?`;
-      params.push(organizationId);
-    }
-    if (stage) {
-      const normDb = normalizeStageName(stage);
-      query += ` AND (LOWER(s.name) = LOWER(?) OR LOWER(s.name) = LOWER(?))`;
-      params.push(normDb, stage);
-    }
-    if (customerId) {
-      query += ` AND d.lead_id = ?`;
-      params.push(customerId);
-    }
-    query += ` ORDER BY d.created_at DESC`;
-
-    const dbDeals = await all(query, params);
-    const result = dbDeals.map(d => ({
-      id: d.id,
-      title: d.title,
-      customerId: d.lead_id || "",
-      customerName: formatCustomerDisplay(d.client_name, d.client_company),
-      value: Number(d.value) || 0,
-      stage: d.stage_name || "Lead In",
-      expectedCloseDate: d.expected_close_date || "",
-      notes: d.notes || "",
-      createdAt: d.created_at,
-      updatedAt: d.updated_at
-    }));
-
-    if (!organizationId) {
-      deals = result;
-    }
-    return result;
+  async getPaginated(params = {}) {
+    return dealStoreModule.getPaginated(params);
   },
 
   async getById(id, organizationId = null) {
-    await ensureDatabaseSeeded();
-    let query = `
-      SELECT d.*, 
-             COALESCE(c.name, l.name, '') as client_name,
-             COALESCE(c.company, l.company, '') as client_company,
-             s.name as stage_name
-      FROM deals d
-      LEFT JOIN customers c ON d.lead_id = c.id
-      LEFT JOIN leads l ON d.lead_id = l.id
-      LEFT JOIN pipeline_stages s ON d.stage_id = s.id
-      WHERE d.id = ?
-    `;
-    const params = [id];
-
-    if (organizationId) {
-      query += ` AND d.organization_id = ?`;
-      params.push(organizationId);
-    }
-
-    const row = await get(query, params);
-    if (!row) return null;
-    return {
-      id: row.id,
-      title: row.title,
-      customerId: row.lead_id || "",
-      customerName: formatCustomerDisplay(row.client_name, row.client_company),
-      value: Number(row.value) || 0,
-      stage: row.stage_name || "Lead In",
-      expectedCloseDate: row.expected_close_date || "",
-      notes: row.notes || "",
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    return dealStoreModule.getById(id, organizationId);
   },
 
   async create(data) {
-    await ensureDatabaseSeeded();
-    let orgId = data.organizationId;
-    if (!orgId) {
-      const org = await get("SELECT id FROM organizations LIMIT 1");
-      orgId = org ? org.id : "org-mtnwl7km-s2wh5";
-    }
-
-    const normStage = normalizeStageName(data.stage || "Lead");
-    const stages = await all("SELECT id, name FROM pipeline_stages WHERE organization_id = ?", [orgId]);
-    const matchedStage = stages.find(s =>
-      s.name.toLowerCase() === normStage.toLowerCase() ||
-      s.name.toLowerCase() === String(data.stage || "").toLowerCase()
-    ) || stages[0];
-
-    if (!matchedStage) {
-      throw new Error(`Invalid deal stage: ${data.stage}`);
-    }
-
-    let customerId = data.customerId || null;
-    if (customerId) {
-      // Ensure customer exists in leads table (deals table references leads(id))
-      const lead = await get("SELECT id FROM leads WHERE id = ?", [customerId]);
-      if (!lead) {
-        const cust = await get("SELECT * FROM customers WHERE id = ?", [customerId]);
-        if (cust) {
-          await run(
-            `INSERT OR IGNORE INTO leads (id, organization_id, name, email, phone, company, status)
-             VALUES (?, ?, ?, ?, ?, ?, 'Qualified')`,
-            [cust.id, orgId, cust.name, cust.email, cust.phone, cust.company]
-          );
-        } else {
-          customerId = null;
-        }
-      }
-    }
-
-    const newDealId = generateId("deal");
-    const now = new Date().toISOString();
-
-    await run(
-      `INSERT INTO deals (id, organization_id, title, lead_id, stage_id, value, expected_close_date, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        newDealId,
-        orgId,
-        data.title.trim(),
-        customerId,
-        matchedStage.id,
-        Number(data.value) || 0,
-        data.expectedCloseDate || null,
-        data.notes ? data.notes.trim() : null,
-        now,
-        now
-      ]
-    );
-
-    await this.syncFromDatabase();
-    return await this.getById(newDealId, orgId);
+    return dealStoreModule.create(data);
   },
 
   async update(id, data, organizationId = null) {
-    await ensureDatabaseSeeded();
-    let checkSql = "SELECT id, organization_id, stage_id FROM deals WHERE id = ?";
-    let checkParams = [id];
-    if (organizationId) {
-      checkSql += " AND organization_id = ?";
-      checkParams.push(organizationId);
-    }
-    const existing = await get(checkSql, checkParams);
-    if (!existing) return null;
-
-    let stageId = existing.stage_id;
-    if (data.stage) {
-      const norm = normalizeStageName(data.stage);
-      const stageRow = await get(
-        "SELECT id FROM pipeline_stages WHERE (LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)) AND organization_id = ? LIMIT 1",
-        [norm, data.stage, existing.organization_id]
-      ) || await get(
-        "SELECT id FROM pipeline_stages WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?) LIMIT 1",
-        [norm, data.stage]
-      );
-      if (!stageRow) {
-        throw new Error(`Invalid stage "${data.stage}"`);
-      }
-      stageId = stageRow.id;
-    }
-
-    const now = new Date().toISOString();
-    let updateSql = `UPDATE deals SET
-         title = COALESCE(?, title),
-         value = COALESCE(?, value),
-         expected_close_date = COALESCE(?, expected_close_date),
-         notes = COALESCE(?, notes),
-         stage_id = ?,
-         updated_at = ?
-       WHERE id = ?`;
-    let updateParams = [data.title, data.value !== undefined ? Number(data.value) : null, data.expectedCloseDate, data.notes, stageId, now, id];
-    if (organizationId) {
-      updateSql += " AND organization_id = ?";
-      updateParams.push(organizationId);
-    }
-    await run(updateSql, updateParams);
-
-    await this.syncFromDatabase();
-    return await this.getById(id, organizationId);
+    return dealStoreModule.update(id, data, organizationId);
   },
 
-  async updateStage(id, stageInput, organizationId = null) {
-    await ensureDatabaseSeeded();
-    let query = "SELECT id, organization_id FROM deals WHERE id = ?";
-    let params = [id];
-    if (organizationId) {
-      query += " AND organization_id = ?";
-      params.push(organizationId);
-    }
-    const dealRow = await get(query, params);
-    if (!dealRow) {
-      return null;
-    }
+  async updateStage(id, stageInput, organizationId = null, userId = null) {
+    return dealStoreModule.updateStage(id, stageInput, organizationId, userId);
+  },
 
-    const normalizedDbName = normalizeStageName(stageInput);
-    const stageRow = await get(
-      "SELECT id, name FROM pipeline_stages WHERE (LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?)) AND organization_id = ? LIMIT 1",
-      [normalizedDbName, stageInput, dealRow.organization_id]
-    ) || await get(
-      "SELECT id, name FROM pipeline_stages WHERE LOWER(name) = LOWER(?) OR LOWER(name) = LOWER(?) LIMIT 1",
-      [normalizedDbName, stageInput]
-    );
-
-    if (!stageRow) {
-      throw new Error(`Invalid stage: "${stageInput}". No matching pipeline stage found.`);
-    }
-
-    const now = new Date().toISOString();
-    let updateSql = "UPDATE deals SET stage_id = ?, updated_at = ? WHERE id = ?";
-    let updateParams = [stageRow.id, now, id];
-    if (organizationId) {
-      updateSql += " AND organization_id = ?";
-      updateParams.push(organizationId);
-    }
-
-    const updateResult = await run(updateSql, updateParams);
-
-    if (!updateResult || updateResult.changes === 0) {
-      throw new Error(`Failed to update deal ${id} stage in SQLite.`);
-    }
-
-    await this.syncFromDatabase();
-    return await this.getById(id, organizationId);
+  async getHistory(dealId, organizationId = null) {
+    return dealStoreModule.getHistory(dealId, organizationId);
   },
 
   async delete(id, organizationId = null) {
-    await ensureDatabaseSeeded();
-    let delSql = "DELETE FROM deals WHERE id = ?";
-    let delParams = [id];
-    if (organizationId) {
-      delSql += " AND organization_id = ?";
-      delParams.push(organizationId);
-    }
-    const res = await run(delSql, delParams);
-    const success = res.changes > 0;
-    await this.syncFromDatabase();
-    return success;
+    return dealStoreModule.delete(id, organizationId);
   },
 
   async getStats(organizationId = null) {
-    const allDeals = await this.getAll({ organizationId });
-    const stages = ["Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost"];
-    const statsByStage = {};
-    stages.forEach(s => {
-      statsByStage[s] = { count: 0, totalValue: 0 };
-    });
-
-    let totalActiveValue = 0;
-    let totalWonValue = 0;
-
-    allDeals.forEach(d => {
-      const shortStage = normalizeShortStage(d.stage);
-      if (statsByStage[shortStage]) {
-        statsByStage[shortStage].count += 1;
-        statsByStage[shortStage].totalValue += Number(d.value) || 0;
-      }
-      if (shortStage === "Won") {
-        totalWonValue += Number(d.value) || 0;
-      } else if (shortStage !== "Lost") {
-        totalActiveValue += Number(d.value) || 0;
-      }
-    });
-
-    return {
-      totalDeals: allDeals.length,
-      totalActiveValue,
-      totalWonValue,
-      byStage: statsByStage
-    };
+    return dealStoreModule.getStats(organizationId);
   }
 };
+
 
 // -------------------------------------------------------------
 // 3. Quotation Storage & Calculation Interface
