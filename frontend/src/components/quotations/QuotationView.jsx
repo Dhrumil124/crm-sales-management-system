@@ -170,41 +170,46 @@ export default function QuotationView({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-sm min-w-full">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left text-sm table-fixed">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Quote #</th>
-                  <th className="px-3.5 sm:px-4 py-3.5">Account / Client</th>
-                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Status</th>
-                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Validity</th>
-                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Items</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">Grand Total</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">Status Controls</th>
+                  <th className="px-2.5 sm:px-3 py-3.5 w-[10%] whitespace-nowrap">Quote #</th>
+                  <th className="px-2.5 sm:px-3 py-3.5 w-[21%] min-w-0">Account / Client</th>
+                  <th className="px-1.5 sm:px-2 py-3.5 w-[9%] whitespace-nowrap">Status</th>
+                  <th className="px-2 py-3.5 w-[13%] whitespace-nowrap">Validity</th>
+                  <th className="px-1.5 sm:px-2 py-3.5 w-[9%] whitespace-nowrap">Items</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-[16%] text-right whitespace-nowrap">Grand Total</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-[22%] text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredQuotations.map((quote) => (
                   <tr key={quote.id} className="hover:bg-slate-50/50 transition-colors">
                     {/* Quote Number */}
-                    <td className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">
+                    <td className="px-2.5 sm:px-3 py-3.5 whitespace-nowrap font-medium">
                       <button
                         onClick={() => setActiveQuoteView(quote)}
-                        className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+                        className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
                       >
                         {quote.quoteNumber}
                       </button>
                     </td>
 
                     {/* Customer Name */}
-                    <td className="px-3.5 sm:px-4 py-3.5">
-                      <div className="font-semibold text-slate-900">{quote.customerName || "—"}</div>
+                    <td className="px-2.5 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                      <div
+                        className="font-semibold text-slate-900 truncate block"
+                        title={quote.customerName}
+                      >
+                        {quote.customerName || "—"}
+                      </div>
                     </td>
 
                     {/* Status Badge */}
-                    <td className="px-3 sm:px-4 py-3.5 whitespace-nowrap">
+                    <td className="px-1.5 sm:px-2 py-3.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                        className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
                           statusColors[quote.status] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -213,34 +218,34 @@ export default function QuotationView({
                     </td>
 
                     {/* Validity */}
-                    <td className="px-3 sm:px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
-                      <div>Issued: {quote.issueDate || "—"}</div>
-                      <div className="text-[11px] text-slate-400">Valid: {quote.validUntil || "—"}</div>
+                    <td className="px-2 py-3.5 text-xs text-slate-500 whitespace-nowrap overflow-hidden">
+                      <div className="truncate">Issued: {quote.issueDate || "—"}</div>
+                      <div className="text-[11px] text-slate-400 truncate">Valid: {quote.validUntil || "—"}</div>
                     </td>
 
                     {/* Line Items Count */}
-                    <td className="px-3 sm:px-4 py-3.5 text-xs text-slate-600 font-medium whitespace-nowrap">
+                    <td className="px-1.5 sm:px-2 py-3.5 text-xs text-slate-600 font-medium whitespace-nowrap">
                       {quote.items?.length || 0} line item{quote.items?.length === 1 ? "" : "s"}
                     </td>
 
                     {/* Grand Total */}
-                    <td className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">
-                      <div className="font-bold text-slate-900 text-base">
+                    <td className="px-2 sm:px-3 py-3.5 text-right whitespace-nowrap overflow-hidden">
+                      <div className="font-bold text-slate-900 text-sm sm:text-base truncate">
                         ₹{Number(quote.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
-                      <div className="text-[11px] text-slate-400">
-                        Subtotal: ₹{Number(quote.subtotal).toLocaleString("en-IN")} + Tax: ₹{Number(quote.taxTotal).toLocaleString("en-IN")}
+                      <div className="text-[11px] text-slate-400 truncate">
+                        Sub: ₹{Number(quote.subtotal).toLocaleString("en-IN")} + Tax: ₹{Number(quote.taxTotal).toLocaleString("en-IN")}
                       </div>
                     </td>
 
-                    {/* Status Controls */}
-                    <td className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
+                    {/* Status Controls & Actions */}
+                    <td className="px-2 sm:px-3 py-3.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1 shrink-0">
                         {quote.status === "Draft" && (
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Sent")}
                             title="Mark as Sent to Client"
-                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0 cursor-pointer"
                           >
                             Send
                           </button>
@@ -249,7 +254,7 @@ export default function QuotationView({
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Accepted")}
                             title="Mark as Accepted"
-                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
                           >
                             Accept
                           </button>
@@ -258,7 +263,7 @@ export default function QuotationView({
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Declined")}
                             title="Mark as Declined"
-                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors"
+                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors shrink-0 cursor-pointer"
                           >
                             Decline
                           </button>
@@ -267,13 +272,13 @@ export default function QuotationView({
                           onClick={() => handleDownloadPdf(quote)}
                           disabled={downloadingId === quote.id}
                           title="Download Quotation PDF"
-                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors flex items-center gap-1 disabled:opacity-60"
+                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-60"
                         >
                           {downloadingId === quote.id ? (
-                            <span className="animate-pulse">Loading...</span>
+                            <span className="animate-pulse">...</span>
                           ) : (
                             <>
-                              <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
                               <span>PDF</span>
@@ -287,7 +292,7 @@ export default function QuotationView({
                             }
                           }}
                           title="Delete Quotation"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                         >
                           <IconTrash className="w-4 h-4" />
                         </button>

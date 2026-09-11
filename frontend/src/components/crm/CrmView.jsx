@@ -217,16 +217,16 @@ export default function CrmView({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-sm min-w-full">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left text-sm table-fixed">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Contact & Company</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Type</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Lifecycle Status</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Communication</th>
-                  <th className="px-3.5 sm:px-4 py-3.5">Notes</th>
-                  <th className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">Actions</th>
+                  <th className="px-2.5 sm:px-3 py-3.5 w-[24%] whitespace-nowrap">Contact & Company</th>
+                  <th className="px-2 py-3.5 w-[11%] whitespace-nowrap">Type</th>
+                  <th className="px-2 py-3.5 w-[13%] whitespace-nowrap">Lifecycle Status</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-[21%] whitespace-nowrap">Communication</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-[16%]">Notes</th>
+                  <th className="px-2.5 sm:px-3 py-3.5 w-[15%] text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -245,18 +245,18 @@ export default function CrmView({
                   return (
                     <tr key={contact.id} className="hover:bg-slate-50/50 transition-colors">
                       {/* Name & Company */}
-                      <td className="px-3.5 sm:px-4 py-3.5">
-                        <div className="font-semibold text-slate-900">{contact.name}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <IconBuilding className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{contact.company || "Individual Contact"}</span>
+                      <td className="px-2.5 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                        <div className="font-semibold text-slate-900 truncate block">{contact.name}</div>
+                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                          <IconBuilding className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">{contact.company || "Individual Contact"}</span>
                         </div>
                       </td>
 
                       {/* Type Badge */}
-                      <td className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">
+                      <td className="px-2 py-3.5 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                          className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
                             isLead
                               ? "bg-amber-50 text-amber-800 border-amber-200"
                               : "bg-emerald-50 text-emerald-800 border-emerald-200"
@@ -267,9 +267,9 @@ export default function CrmView({
                       </td>
 
                       {/* Status Badge */}
-                      <td className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">
+                      <td className="px-2 py-3.5 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                          className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${
                             statusColors[contact.status] || "bg-slate-100 text-slate-700 border-slate-200"
                           }`}
                         >
@@ -278,34 +278,34 @@ export default function CrmView({
                       </td>
 
                       {/* Contact Info */}
-                      <td className="px-3.5 sm:px-4 py-3.5">
-                        <div className="text-xs text-slate-700 flex items-center gap-1.5">
+                      <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                        <div className="text-xs text-slate-700 flex items-center gap-1.5 truncate">
                           <IconMail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          <span>{contact.email}</span>
+                          <span className="truncate">{contact.email}</span>
                         </div>
                         {contact.phone && (
-                          <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
+                          <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 truncate">
                             <IconPhone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            <span>{contact.phone}</span>
+                            <span className="truncate">{contact.phone}</span>
                           </div>
                         )}
                       </td>
 
                       {/* Notes snippet */}
-                      <td className="px-3.5 sm:px-4 py-3.5 max-w-xs">
+                      <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
                         <p className="text-xs text-slate-500 truncate" title={contact.notes}>
                           {contact.notes || "—"}
                         </p>
                       </td>
 
                       {/* Actions */}
-                      <td className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">
+                      <td className="px-2.5 sm:px-3 py-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {isLead && (
                             <button
                               onClick={() => handleConvertToCustomer(contact)}
                               title="Convert to Customer"
-                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
                             >
                               Convert
                             </button>
@@ -313,7 +313,7 @@ export default function CrmView({
                           <button
                             onClick={() => openEditModal(contact)}
                             title="Edit Contact"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0 cursor-pointer"
                           >
                             <IconEdit className="w-4 h-4" />
                           </button>
@@ -324,7 +324,7 @@ export default function CrmView({
                               }
                             }}
                             title="Delete Contact"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                           >
                             <IconTrash className="w-4 h-4" />
                           </button>
