@@ -2,6 +2,9 @@
  * Quotation PDF Generation Service (Day 8 Backend)
  * Generates an elegantly styled, professional commercial quotation PDF
  * loaded directly from authoritative SQLite database records.
+ * 
+ * Features dynamic vertical flow layout to prevent text overlapping on long names,
+ * multi-line line items, and full-width notes card placed cleanly underneath grand total.
  */
 
 const PDFDocument = require("pdfkit");
@@ -54,7 +57,6 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       doc.on("error", (err) => reject(err));
 
       // Page dimensions
-      const pageWidth = 595.28; // A4 width in pt
       const contentWidth = 505.28; // 595.28 - 2 * 45
       const leftX = 45;
       const rightX = leftX + contentWidth;
@@ -63,53 +65,91 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       // TOP BRANDING BANNER
       // -------------------------------------------------------------
       // Deep Indigo top accent banner
-      doc.rect(leftX, 40, contentWidth, 5).fill("#4338ca");
+      doc.rect(leftX, 38, contentWidth, 4).fill("#4338ca");
 
-      // Company Name & Subtitle
+      // Calculate organization name height to prevent overlap
+      const orgNameHeight = doc
+        .fontSize(20)
+        .font("Helvetica-Bold")
+        .heightOfString(organizationName, { width: 280 });
+
       doc
-        .fontSize(22)
+        .fontSize(20)
         .font("Helvetica-Bold")
         .fillColor("#0f172a")
-        .text(organizationName, leftX, 58);
+        .text(organizationName, leftX, 52, { width: 280 });
 
+      const subtitleY = 52 + orgNameHeight + 3;
       doc
-        .fontSize(9.5)
+        .fontSize(9)
         .font("Helvetica")
         .fillColor("#64748b")
-        .text("Enterprise Sales Management & Commercial Quotations", leftX, 86);
+        .text("Enterprise Sales Management & Commercial Quotations", leftX, subtitleY);
 
-      // Document Title Badge
+      // Document Title Badge (Right-aligned)
       doc
-        .fontSize(22)
+        .fontSize(20)
         .font("Helvetica-Bold")
         .fillColor("#4338ca")
-        .text("QUOTATION", 320, 58, { align: "right", width: 230 });
+        .text("QUOTATION", 330, 52, { align: "right", width: 220 });
 
       doc
         .fontSize(11)
         .font("Helvetica-Bold")
         .fillColor("#1e293b")
-        .text(quotation.quoteNumber, 320, 86, { align: "right", width: 230 });
+        .text(quotation.quoteNumber, 330, 76, { align: "right", width: 220 });
+
+      const headerBottomY = Math.max(subtitleY + 18, 98);
 
       // Subtle horizontal divider
       doc
         .strokeColor("#e2e8f0")
         .lineWidth(1)
-        .moveTo(leftX, 110)
-        .lineTo(rightX, 110)
+        .moveTo(leftX, headerBottomY)
+        .lineTo(rightX, headerBottomY)
         .stroke();
 
       // -------------------------------------------------------------
-      // CLIENT & QUOTATION METADATA CARDS
+      // CLIENT & QUOTATION METADATA CARDS (DYNAMIC HEIGHT)
       // -------------------------------------------------------------
-      const cardY = 122;
+      const cardY = headerBottomY + 14;
       const colWidth = 242;
+      const rightCardX = leftX + colWidth + 21;
 
-      // Left Card: Customer Information
+      // Clean customer display: avoid duplicated company if already present in name
+      const customerDisplayName = quotation.customerName || "Valued Client";
+
+      // Dynamically measure customer name height
+      const nameTextHeight = doc
+        .fontSize(11)
+        .font("Helvetica-Bold")
+        .heightOfString(customerDisplayName, { width: colWidth - 28 });
+
+      // Measure total left card height based on present contact fields
+      let leftContentHeight = 12 + 14 + nameTextHeight + 6; // header + name + spacing
+      const shouldShowCompany =
+        quotation.customerCompany &&
+        !customerDisplayName.toLowerCase().includes(quotation.customerCompany.toLowerCase());
+
+      if (shouldShowCompany) leftContentHeight += 13;
+      if (quotation.customerEmail) leftContentHeight += 13;
+      if (quotation.customerPhone) leftContentHeight += 13;
+      if (quotation.customerAddress) leftContentHeight += 13;
+      leftContentHeight += 12; // bottom margin
+
+      const cardHeight = Math.max(96, Math.ceil(leftContentHeight));
+
+      // Draw Left Card Container
       doc
-        .roundedRect(leftX, cardY, colWidth, 90, 6)
+        .roundedRect(leftX, cardY, colWidth, cardHeight, 6)
         .fillAndStroke("#f8fafc", "#e2e8f0");
 
+      // Draw Right Card Container
+      doc
+        .roundedRect(rightCardX, cardY, colWidth, cardHeight, 6)
+        .fillAndStroke("#f8fafc", "#e2e8f0");
+
+      // Render Left Card Content (Dynamic vertical offset)
       doc
         .fontSize(8.5)
         .font("Helvetica-Bold")
@@ -117,32 +157,32 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
         .text("PREPARED FOR", leftX + 14, cardY + 12);
 
       doc
-        .fontSize(12)
+        .fontSize(11)
         .font("Helvetica-Bold")
         .fillColor("#0f172a")
-        .text(quotation.customerName || "Valued Client", leftX + 14, cardY + 26, { width: colWidth - 28 });
+        .text(customerDisplayName, leftX + 14, cardY + 26, { width: colWidth - 28 });
 
-      let cY = cardY + 42;
+      // Dynamic cY strictly below customer name
+      let cY = cardY + 26 + nameTextHeight + 6;
       doc.fontSize(8.5).font("Helvetica").fillColor("#475569");
 
-      if (quotation.customerCompany) {
+      if (shouldShowCompany) {
         doc.text(`Company: ${quotation.customerCompany}`, leftX + 14, cY, { width: colWidth - 28 });
-        cY += 12;
+        cY += 13;
       }
       if (quotation.customerEmail) {
         doc.text(`Email: ${quotation.customerEmail}`, leftX + 14, cY, { width: colWidth - 28 });
-        cY += 12;
+        cY += 13;
       }
       if (quotation.customerPhone) {
         doc.text(`Phone: ${quotation.customerPhone}`, leftX + 14, cY, { width: colWidth - 28 });
+        cY += 13;
+      }
+      if (quotation.customerAddress) {
+        doc.text(`Address: ${quotation.customerAddress}`, leftX + 14, cY, { width: colWidth - 28 });
       }
 
-      // Right Card: Quotation Metadata
-      const rightCardX = leftX + colWidth + 21;
-      doc
-        .roundedRect(rightCardX, cardY, colWidth, 90, 6)
-        .fillAndStroke("#f8fafc", "#e2e8f0");
-
+      // Render Right Card Content (Quotation Metadata)
       doc
         .fontSize(8.5)
         .font("Helvetica-Bold")
@@ -162,8 +202,8 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       };
 
       renderMetaLine("Quote Number:", quotation.quoteNumber, cardY + 28);
-      renderMetaLine("Issue Date:", quotation.issueDate, cardY + 42);
-      renderMetaLine("Valid Until:", quotation.validUntil, cardY + 56);
+      renderMetaLine("Issue Date:", quotation.issueDate, cardY + 44);
+      renderMetaLine("Valid Until:", quotation.validUntil, cardY + 60);
 
       const statusColors = {
         Draft: "#475569",
@@ -174,29 +214,29 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       renderMetaLine(
         "Status:",
         quotation.status.toUpperCase(),
-        cardY + 70,
+        cardY + 76,
         statusColors[quotation.status] || "#0f172a"
       );
 
       // -------------------------------------------------------------
-      // ITEMIZATION TABLE
+      // ITEMIZATION TABLE (DYNAMIC ROW HEIGHTS)
       // -------------------------------------------------------------
-      const tableTop = 228;
-      const tableHeaderHeight = 24;
+      const tableTop = cardY + cardHeight + 16;
+      const tableHeaderHeight = 22;
 
       // Table Header Dark Container
       doc
         .roundedRect(leftX, tableTop, contentWidth, tableHeaderHeight, 4)
         .fill("#1e293b");
 
-      // Column widths & offsets
+      // Column widths & horizontal offsets
       const col = {
-        num: { x: leftX + 8, w: 22 },
-        desc: { x: leftX + 35, w: 225 },
+        num: { x: leftX + 6, w: 22 },
+        desc: { x: leftX + 32, w: 228 },
         qty: { x: leftX + 265, w: 45 },
         price: { x: leftX + 315, w: 65 },
         tax: { x: leftX + 385, w: 45 },
-        total: { x: leftX + 435, w: 62 }
+        total: { x: leftX + 435, w: 64 }
       };
 
       // Table Header Titles
@@ -204,12 +244,12 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
         .fontSize(8.5)
         .font("Helvetica-Bold")
         .fillColor("#ffffff")
-        .text("#", col.num.x, tableTop + 7, { width: col.num.w, align: "center" })
-        .text("Item & Description", col.desc.x, tableTop + 7, { width: col.desc.w })
-        .text("Qty", col.qty.x, tableTop + 7, { width: col.qty.w, align: "right" })
-        .text("Unit Price", col.price.x, tableTop + 7, { width: col.price.w, align: "right" })
-        .text("Tax %", col.tax.x, tableTop + 7, { width: col.tax.w, align: "right" })
-        .text("Amount", col.total.x, tableTop + 7, { width: col.total.w, align: "right" });
+        .text("#", col.num.x, tableTop + 6, { width: col.num.w, align: "center" })
+        .text("Item & Description", col.desc.x, tableTop + 6, { width: col.desc.w })
+        .text("Qty", col.qty.x, tableTop + 6, { width: col.qty.w, align: "right" })
+        .text("Unit Price", col.price.x, tableTop + 6, { width: col.price.w, align: "right" })
+        .text("Tax %", col.tax.x, tableTop + 6, { width: col.tax.w, align: "right" })
+        .text("Amount", col.total.x, tableTop + 6, { width: col.total.w, align: "right" });
 
       let currentY = tableTop + tableHeaderHeight;
       const items = quotation.items || [];
@@ -229,7 +269,13 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
         currentY += 26;
       } else {
         items.forEach((item, index) => {
-          const rowHeight = 24;
+          // Dynamically calculate description height to prevent row overlap on long items
+          const descHeight = doc
+            .fontSize(8.5)
+            .font("Helvetica-Bold")
+            .heightOfString(item.description, { width: col.desc.w });
+
+          const rowHeight = Math.max(22, Math.ceil(descHeight + 10));
           const isEven = index % 2 === 0;
 
           // Alternating row background
@@ -245,27 +291,29 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
             .lineTo(rightX, currentY + rowHeight)
             .stroke();
 
-          // Row contents
+          // Row text
+          const textY = currentY + 5;
+
           doc
             .fontSize(8.5)
             .font("Helvetica")
             .fillColor("#64748b")
-            .text(String(index + 1), col.num.x, currentY + 7, { width: col.num.w, align: "center" });
+            .text(String(index + 1), col.num.x, textY, { width: col.num.w, align: "center" });
 
           doc
             .font("Helvetica-Bold")
             .fillColor("#0f172a")
-            .text(item.description, col.desc.x, currentY + 7, { width: col.desc.w, ellipsis: true });
+            .text(item.description, col.desc.x, textY, { width: col.desc.w });
 
           doc
             .font("Helvetica")
             .fillColor("#334155")
-            .text(String(item.quantity), col.qty.x, currentY + 7, { width: col.qty.w, align: "right" })
-            .text(`INR ${Number(item.unitPrice).toFixed(2)}`, col.price.x, currentY + 7, { width: col.price.w, align: "right" })
-            .text(`${item.taxRate}%`, col.tax.x, currentY + 7, { width: col.tax.w, align: "right" })
+            .text(String(item.quantity), col.qty.x, textY, { width: col.qty.w, align: "right" })
+            .text(`INR ${Number(item.unitPrice).toFixed(2)}`, col.price.x, textY, { width: col.price.w, align: "right" })
+            .text(`${item.taxRate}%`, col.tax.x, textY, { width: col.tax.w, align: "right" })
             .font("Helvetica-Bold")
             .fillColor("#0f172a")
-            .text(`INR ${Number(item.lineTotal).toFixed(2)}`, col.total.x, currentY + 7, { width: col.total.w, align: "right" });
+            .text(`INR ${Number(item.lineTotal).toFixed(2)}`, col.total.x, textY, { width: col.total.w, align: "right" });
 
           currentY += rowHeight;
         });
@@ -280,10 +328,10 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
         .stroke();
 
       // -------------------------------------------------------------
-      // FINANCIAL SUMMARY & TOTALS
+      // FINANCIAL SUMMARY & GRAND TOTAL (RIGHT-ALIGNED BLOCK)
       // -------------------------------------------------------------
-      currentY += 16;
-      const summaryBoxWidth = 230;
+      currentY += 14;
+      const summaryBoxWidth = 235;
       const summaryBoxX = rightX - summaryBoxWidth;
 
       const renderSummaryRow = (label, amount, isDeduction = false, isBold = false) => {
@@ -316,12 +364,13 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       currentY += 4;
 
       // Grand Total Highlight Container (Indigo Banner)
+      const grandTotalHeight = 28;
       doc
-        .roundedRect(summaryBoxX - 6, currentY - 4, summaryBoxWidth + 6, 28, 5)
+        .roundedRect(summaryBoxX - 6, currentY - 4, summaryBoxWidth + 6, grandTotalHeight, 5)
         .fill("#4338ca");
 
       doc
-        .fontSize(11)
+        .fontSize(10.5)
         .font("Helvetica-Bold")
         .fillColor("#ffffff")
         .text("GRAND TOTAL:", summaryBoxX + 6, currentY + 3, { width: 100 });
@@ -335,38 +384,48 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
           align: "right"
         });
 
-      // -------------------------------------------------------------
-      // NOTES / TERMS & CONDITIONS SECTION
-      // -------------------------------------------------------------
-      const notesBoxY = Math.max(currentY + 45, tableTop + items.length * 24 + 65);
-      const notesBoxWidth = 320;
+      currentY += grandTotalHeight + 4;
 
+      // -------------------------------------------------------------
+      // NOTES / TERMS & CONDITIONS (PLACED UNDERNEATH GRAND TOTAL)
+      // Spans the full content width for clean alignment and readability
+      // -------------------------------------------------------------
       if (quotation.notes && quotation.notes.trim()) {
+        const notesBoxY = currentY + 20;
+        const notesBoxWidth = contentWidth;
+
+        const notesContentHeight = doc
+          .fontSize(8.5)
+          .font("Helvetica")
+          .heightOfString(quotation.notes.trim(), { width: notesBoxWidth - 28 });
+
+        const notesBoxHeight = Math.max(48, Math.ceil(notesContentHeight + 28));
+
         doc
-          .roundedRect(leftX, notesBoxY, notesBoxWidth, 75, 6)
+          .roundedRect(leftX, notesBoxY, notesBoxWidth, notesBoxHeight, 6)
           .fillAndStroke("#f8fafc", "#e2e8f0");
 
         doc
           .fontSize(8.5)
           .font("Helvetica-Bold")
           .fillColor("#4338ca")
-          .text("NOTES & TERMS OF SERVICE", leftX + 12, notesBoxY + 10);
+          .text("NOTES & TERMS OF SERVICE", leftX + 14, notesBoxY + 10);
 
         doc
           .fontSize(8.5)
           .font("Helvetica")
           .fillColor("#475569")
-          .text(quotation.notes.trim(), leftX + 12, notesBoxY + 24, {
-            width: notesBoxWidth - 24,
-            height: 45,
-            ellipsis: true
+          .text(quotation.notes.trim(), leftX + 14, notesBoxY + 24, {
+            width: notesBoxWidth - 28
           });
+
+        currentY = notesBoxY + notesBoxHeight;
       }
 
       // -------------------------------------------------------------
       // FOOTER
       // -------------------------------------------------------------
-      const footerY = 760;
+      const footerY = 765;
 
       doc
         .strokeColor("#e2e8f0")
