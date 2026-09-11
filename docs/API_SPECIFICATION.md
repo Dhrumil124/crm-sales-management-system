@@ -799,53 +799,184 @@ All quotation endpoints require JWT Bearer authentication and are strictly isola
 - **Auth Required:** Yes
 - **Response (200 OK):** Returns ticket object with embedded `comments` array.
 
-### 7.3 Create Ticket
+### 7.1 List Tickets
+- **Endpoint:** `GET /api/tickets`
+- **Auth Required:** Yes (Strictly tenant-scoped)
+- **Query Parameters:**
+  - `status` (optional): Filter by `Open`, `In Progress`, `Waiting`, `Resolved`, `Closed`
+  - `priority` (optional): Filter by `Low`, `Medium`, `High`, `Urgent`
+  - `customerId` (optional): Filter by customer ID
+  - `assignedTo` (optional): Filter by assigned user ID or name
+  - `search` (optional): Search keyword across ticket number, title, description, and customer
+  - `page` (optional): Page number (integer $\ge 1$)
+  - `limit` (optional): Page size (integer $1 \dots 100$)
+- **Response (200 OK):**
+```json
+{
+  "tickets": [
+    {
+      "id": "tck-xxx",
+      "ticketNumber": "TICKET-00001",
+      "customerId": "cust-1",
+      "customerName": "John Miller (Apex Tech Solutions)",
+      "title": "Rate limit increase for webhooks",
+      "description": "Need increase from 60 req/min to 300 req/min",
+      "priority": "Medium",
+      "status": "Open",
+      "assignedTo": "Alice Support Lead",
+      "commentCount": 1,
+      "attachmentCount": 1,
+      "createdAt": "2026-09-11T10:00:00.000Z",
+      "updatedAt": "2026-09-11T10:05:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
+  }
+}
+```
+
+### 7.2 Get Ticket by Canonical ID
+- **Endpoint:** `GET /api/tickets/:id`
+- **Auth Required:** Yes (Strictly tenant-scoped; returns 404 for cross-tenant access)
+- **Response (200 OK):**
+```json
+{
+  "id": "tck-xxx",
+  "ticketNumber": "TICKET-00001",
+  "customerId": "cust-1",
+  "customerName": "John Miller (Apex Tech Solutions)",
+  "customerEmail": "john.miller@apextech.com",
+  "customerCompany": "Apex Tech Solutions",
+  "title": "Rate limit increase for webhooks",
+  "description": "Need increase from 60 req/min to 300 req/min",
+  "priority": "Medium",
+  "status": "Open",
+  "assignedTo": "Alice Support Lead",
+  "assignedToId": "user-xxx",
+  "comments": [
+    {
+      "id": "comm-xxx",
+      "ticketId": "tck-xxx",
+      "userId": "user-xxx",
+      "author": "Alice Support Lead",
+      "text": "Investigating edge rate limits.",
+      "createdAt": "2026-09-11T10:02:00.000Z"
+    }
+  ],
+  "attachments": [
+    {
+      "id": "att-xxx",
+      "ticketId": "tck-xxx",
+      "originalFilename": "trace_log.json",
+      "storedPath": "storage/attachments/att-1789104854212-trace_log.json",
+      "mimeType": "application/json",
+      "fileSize": 1024,
+      "uploadedBy": "user-xxx",
+      "uploaderName": "Alice Support Lead",
+      "createdAt": "2026-09-11T10:03:00.000Z"
+    }
+  ],
+  "createdAt": "2026-09-11T10:00:00.000Z",
+  "updatedAt": "2026-09-11T10:05:00.000Z"
+}
+```
+
+### 7.3 Create Ticket (Auto-Numbered)
 - **Endpoint:** `POST /api/tickets`
 - **Auth Required:** Yes
+- **Auto-Numbering:** Generated server-side as `TICKET-00001`, `TICKET-00002`... per organization. Client cannot control or override.
 - **Request Body:**
 ```json
 {
   "customerId": "cust-1",
   "title": "Rate limit increase for webhooks",
   "description": "Need increase from 60 req/min to 300 req/min",
-  "priority": "Medium"
+  "priority": "Medium",
+  "status": "Open",
+  "assignedTo": "user-xxx"
 }
 ```
 - **Response (201 Created):** Returns created ticket object.
 
-### 7.4 Update Ticket Status
+### 7.4 Update Ticket Fields
+- **Endpoint:** `PATCH /api/tickets/:id`
+- **Auth Required:** Yes
+- **Allowed Fields:** `title`, `description`, `priority`, `status`, `customerId`, `assignedTo`
+- **Response (200 OK):** Returns updated ticket object.
+
+### 7.5 Update Ticket Status
 - **Endpoint:** `PATCH /api/tickets/:id/status`
 - **Auth Required:** Yes
 - **Request Body:**
 ```json
 {
-  "status": "Resolved"
+  "status": "In Progress"
 }
 ```
 - **Supported Statuses:** `Open`, `In Progress`, `Waiting`, `Resolved`, `Closed`
 - **Response (200 OK):** Returns updated ticket object.
 
-### 7.5 Add Ticket Comment / Timeline Entry
+### 7.6 Assign Ticket
+- **Endpoint:** `PATCH /api/tickets/:id/assign`
+- **Auth Required:** Yes
+- **Request Body:**
+```json
+{
+  "assignedTo": "user-xxx"
+}
+```
+*(Pass `null` or `""` to unassign)*
+- **Response (200 OK):** Returns updated ticket object.
+
+### 7.7 Add Ticket Comment
 - **Endpoint:** `POST /api/tickets/:id/comments`
 - **Auth Required:** Yes
 - **Request Body:**
 ```json
 {
-  "author": "Dhrumil Patel",
-  "text": "Investigated gateway throughput; adjusted token bucket capacity to 200 req/sec."
+  "author": "Alice Support Lead",
+  "text": "Patched keep-alive pool and rotated DNS."
 }
 ```
-- **Response (201 Created):** Returns updated ticket object with the new comment included in `comments`.
+- **Response (201 Created):** Returns updated ticket object with the new comment.
 
-### 7.6 Delete Ticket
+### 7.8 Upload Attachment
+- **Endpoint:** `POST /api/tickets/:id/attachments`
+- **Auth Required:** Yes
+- **Content-Type:** `multipart/form-data` with form field `file` (or JSON metadata for programmatic testing)
+- **File Limits:** 10MB max, saved securely under `backend/storage/attachments/`
+- **Response (201 Created):**
+```json
+{
+  "id": "att-xxx",
+  "ticketId": "tck-xxx",
+  "originalFilename": "trace_log.json",
+  "storedPath": "storage/attachments/att-1789104854212-trace_log.json",
+  "mimeType": "application/json",
+  "fileSize": 1024,
+  "uploadedBy": "user-xxx",
+  "uploaderName": "Alice Support Lead",
+  "createdAt": "2026-09-11T10:03:00.000Z"
+}
+```
+
+### 7.9 Delete Ticket (Preserved)
 - **Endpoint:** `DELETE /api/tickets/:id`
 - **Auth Required:** Yes
 - **Response (200 OK):**
 ```json
 {
-  "message": "Ticket deleted successfully"
+  "message": "Ticket deleted successfully",
+  "id": "tck-xxx"
 }
 ```
+
 
 ---
 

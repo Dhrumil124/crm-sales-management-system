@@ -191,8 +191,22 @@ export const api = {
     },
     getById: (id) => request(`/tickets/${id}`),
     create: (data) => request("/tickets", { method: "POST", body: JSON.stringify(data) }),
+    update: (id, data) => request(`/tickets/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     updateStatus: (id, status) => request(`/tickets/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+    assign: (id, assignedTo) => request(`/tickets/${id}/assign`, { method: "PATCH", body: JSON.stringify({ assignedTo }) }),
     addComment: (id, commentData) => request(`/tickets/${id}/comments`, { method: "POST", body: JSON.stringify(commentData) }),
+    uploadAttachment: (id, formData) => {
+      const token = localStorage.getItem("crm_auth_token");
+      return fetch(`${API_BASE_URL}/tickets/${id}/attachments`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "Failed to upload attachment");
+        return data;
+      });
+    },
     delete: (id) => request(`/tickets/${id}`, { method: "DELETE" })
   }
 };
