@@ -128,32 +128,30 @@ export default function Sidebar({
             </button>
           );
         })}
-
-        {/* User / Organization Profile & Logout directly downside of Support Tickets */}
-        {user && (
-          <div className="pt-3 mt-2 border-t border-slate-800/80">
-            <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-                <p className="text-[11px] text-slate-400 truncate">
-                  {user.email}
-                </p>
-              </div>
-              {onLogout && (
-                <button
-                  onClick={handleLogoutClick}
-                  title="Sign Out"
-                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer shrink-0"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </nav>
+
+      {/* User / Organization Profile & Logout (Anchored at the bottom of sidebar) */}
+      {user && (
+        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-white truncate">{user.name}</p>
+            <p className="text-[11px] text-slate-400 truncate">
+              {user.email}
+            </p>
+          </div>
+          {onLogout && (
+            <button
+              onClick={handleLogoutClick}
+              title="Sign Out"
+              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 
