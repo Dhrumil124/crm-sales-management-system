@@ -239,18 +239,18 @@ export default function QuotationView({
                     </td>
 
                     {/* Status Controls & Actions */}
-                    <td className="px-2 sm:px-3 py-3.5 text-right whitespace-nowrap">
+                    <td className="px-2 sm:px-3 py-3.5 text-right whitespace-nowrap overflow-hidden">
                       <div className="flex items-center justify-end gap-1 shrink-0">
                         {quote.status === "Draft" && (
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Sent")}
                             title="Mark as Sent to Client"
-                            className="px-2 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0 cursor-pointer"
                           >
                             Send
                           </button>
                         )}
-                        {quote.status !== "Accepted" && (
+                        {quote.status !== "Draft" && quote.status !== "Accepted" && (
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Accepted")}
                             title="Mark as Accepted"
@@ -259,7 +259,7 @@ export default function QuotationView({
                             Accept
                           </button>
                         )}
-                        {quote.status !== "Declined" && (
+                        {quote.status !== "Draft" && quote.status !== "Declined" && (
                           <button
                             onClick={() => onUpdateStatus(quote.id, "Declined")}
                             title="Mark as Declined"
