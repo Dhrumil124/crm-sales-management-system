@@ -602,117 +602,167 @@ All Lead endpoints are scoped to the authenticated user's `organizationId`.
 
 ---
 
-## 6. Quotation Management Routes
+## 6. Quotation Management Routes (Day 8 Backend)
+
+All quotation endpoints require JWT Bearer authentication and are strictly isolated by `req.user.organizationId`. SQLite is the single source of truth; financial totals and auto-numbering are safely computed and persisted server-side.
 
 ### 6.1 List All Quotations
 - **Endpoint:** `GET /api/quotations`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (`Bearer <JWT>`)
 - **Query Parameters (Optional):**
+  - `page`: Page number (integer >= 1)
+  - `limit`: Items per page (integer 1..100)
   - `status`: Filter by status (`Draft`, `Sent`, `Accepted`, `Declined`)
   - `customerId`: Filter by customer ID
-- **Response (200 OK):**
+  - `search`: Case-insensitive search on quotation number, customer name, company, or notes
+- **Response (200 OK - Paginated):**
 ```json
-[
-  {
-    "id": "quote-1",
-    "quoteNumber": "QT-1001",
-    "customerId": "cust-1",
-    "customerName": "John Miller",
-    "company": "Apex Tech Solutions",
-    "customerEmail": "john.miller@apextech.com",
-    "issueDate": "2026-08-20",
-    "validUntil": "2026-09-20",
-    "status": "Accepted",
-    "subtotal": 45000,
-    "taxRate": 18,
-    "taxTotal": 8100,
-    "grandTotal": 53100,
-    "notes": "Payment terms: Net 30 days.",
-    "items": [
-      {
-        "id": "qi-1",
-        "description": "Enterprise Platform Licenses (Annual)",
-        "quantity": 50,
-        "unitPrice": 900,
-        "total": 45000
-      }
-    ]
+{
+  "quotations": [
+    {
+      "id": "quote-mtwh414a-8uh1j",
+      "quoteNumber": "AUTO-00001",
+      "customerId": "cust-1",
+      "customerName": "John Miller (Apex Tech Solutions)",
+      "customerEmail": "john.miller@apextech.com",
+      "customerCompany": "Apex Tech Solutions",
+      "items": [
+        {
+          "id": "qitem-1",
+          "quotationId": "quote-mtwh414a-8uh1j",
+          "description": "Enterprise Cloud Subscription",
+          "quantity": 2,
+          "unitPrice": 15000,
+          "taxRate": 18,
+          "taxAmount": 5400,
+          "lineTotal": 30000,
+          "createdAt": "2026-09-11T10:00:00.000Z"
+        }
+      ],
+      "subtotal": 30000,
+      "taxTotal": 5400,
+      "discount": 0,
+      "grandTotal": 35400,
+      "status": "Draft",
+      "issueDate": "2026-09-11",
+      "validUntil": "2026-10-11",
+      "notes": "Standard payment terms.",
+      "organizationId": "org-xxx",
+      "createdAt": "2026-09-11T10:00:00.000Z",
+      "updatedAt": "2026-09-11T10:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1,
+    "hasNextPage": false,
+    "hasPrevPage": false
   }
-]
-```
-
-### 6.2 Calculate Quotation Preview (Pre-save Tax & Total Engine)
-- **Endpoint:** `POST /api/quotations/preview`
-- **Auth Required:** Yes
-- **Description:** Real-time preview computation utility without persisting to SQLite.
-- **Request Body:**
-```json
-{
-  "items": [
-    { "quantity": 2, "unitPrice": 25000, "taxRate": 18 },
-    { "quantity": 1, "unitPrice": 10000, "taxRate": 18 }
-  ]
-}
-```
-- **Response (200 OK):**
-```json
-{
-  "subtotal": 60000,
-  "taxTotal": 10800,
-  "grandTotal": 70800,
-  "items": [ ... ]
 }
 ```
 
-### 6.3 Get Quotation Details by ID
-- **Endpoint:** `GET /api/quotations/:id`
-- **Auth Required:** Yes
-- **Response (200 OK):** Returns single quotation object with line items.
-
-### 6.4 Create Quotation
+### 6.2 Create Quotation
 - **Endpoint:** `POST /api/quotations`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Quotation Numbering:** Automatically generated server-side in `AUTO-00001`, `AUTO-00002` format based on existing persisted quotations for the tenant organization. Client-supplied numbers cannot override server generation.
 - **Request Body:**
 ```json
 {
   "customerId": "cust-1",
-  "quoteNumber": "QT-1006",
-  "issueDate": "2026-09-10",
-  "validUntil": "2026-10-10",
-  "notes": "Valid for 30 days",
+  "issueDate": "2026-09-11",
+  "validUntil": "2026-10-11",
+  "status": "Draft",
+  "discount": 0,
+  "notes": "Net 30 terms.",
   "items": [
     {
-      "description": "Cloud Hosting & Architecture Setup",
-      "quantity": 1,
-      "unitPrice": 50000,
+      "description": "Enterprise Cloud Architecture",
+      "quantity": 2,
+      "unitPrice": 15000,
       "taxRate": 18
     }
   ]
 }
 ```
-- **Response (201 Created):** Returns created quotation object.
+- **Response (201 Created):** Returns the full persisted quotation record with generated `AUTO-XXXXX` quote number, line items, and financial totals.
 
-### 6.5 Update Quotation Status
-- **Endpoint:** `PATCH /api/quotations/:id/status`
-- **Auth Required:** Yes
+### 6.3 Add Quotation Item
+- **Endpoint:** `POST /api/quotations/:id/items`
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Description:** Adds a line item to an existing quotation, persists in SQLite, and atomically recalculates quotation subtotal, tax_total, and grand_total.
 - **Request Body:**
 ```json
 {
-  "status": "Accepted"
+  "description": "24/7 Dedicated Support SLA",
+  "quantity": 1,
+  "unitPrice": 5000,
+  "taxRate": 10
 }
 ```
-- **Supported Statuses:** `Draft`, `Sent`, `Accepted`, `Declined`
-- **Response (200 OK):** Returns updated quotation object.
+- **Response (201 Created):**
+```json
+{
+  "message": "Quotation item added successfully",
+  "id": "qitem-mtwh8xyz",
+  "quotationId": "quote-mtwh414a-8uh1j",
+  "description": "24/7 Dedicated Support SLA",
+  "quantity": 1,
+  "unitPrice": 5000,
+  "taxRate": 10,
+  "taxAmount": 500,
+  "lineTotal": 5000,
+  "item": { ... },
+  "quotation": { ... }
+}
+```
+
+### 6.4 Get Quotation Details by ID
+- **Endpoint:** `GET /api/quotations/:id`
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Tenant Security:** Strictly restricted to user's organization; returns 404 for cross-tenant access.
+- **Response (200 OK):** Returns single quotation object with populated `items` array and customer details.
+
+### 6.5 Update Quotation
+- **Endpoint:** `PATCH /api/quotations/:id`
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Updatable Fields:** `customerId`, `status`, `validUntil`, `issueDate`, `notes`, `discount`.
+- **Validation:** If `customerId` changes, it is verified to belong to the authenticated user's organization. `discount` must be >= 0. Recalculates `grand_total = Math.max(0, subtotal + tax_total - discount)`.
+- **Request Body:**
+```json
+{
+  "status": "Sent",
+  "discount": 1500,
+  "notes": "Client discount of ₹1500 applied."
+}
+```
+- **Response (200 OK):** Returns fresh updated quotation from SQLite.
 
 ### 6.6 Delete Quotation
 - **Endpoint:** `DELETE /api/quotations/:id`
-- **Auth Required:** Yes
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Description:** Deletes the quotation and cascades deletion of its line items in an atomic SQLite transaction.
 - **Response (200 OK):**
 ```json
 {
-  "message": "Quotation deleted successfully"
+  "message": "Quotation deleted successfully",
+  "id": "quote-xxx"
 }
 ```
+
+### 6.7 Quotation PDF Generation
+- **Endpoint:** `GET /api/quotations/:id/pdf` (Alias: `GET /api/quotations/:id/download`)
+- **Auth Required:** Yes (`Bearer <JWT>`)
+- **Description:** Streams a PDF document rendered directly from SQLite data using `pdfkit`. Includes organization header, quotation metadata, customer billing details, itemized table, and financial totals block.
+- **Response Headers:**
+  - `Content-Type: application/pdf`
+  - `Content-Disposition: inline; filename="quotation-AUTO-00001.pdf"`
+- **Response Body:** Binary PDF payload.
+
+### 6.8 Legacy & Utility Endpoints (Preserved)
+- **`PATCH /api/quotations/:id/status`**: Updates quotation status (`Draft`, `Sent`, `Accepted`, `Declined`).
+- **`POST /api/quotations/preview`**: Pre-save calculation utility without writing to SQLite. Accepts `{ items: [...], discount: 0 }` and returns `{ items, subtotal, taxTotal, discount, grandTotal }`.
 
 ---
 

@@ -145,14 +145,20 @@ export const api = {
       const query = new URLSearchParams();
       if (params.status) query.append("status", params.status);
       if (params.customerId) query.append("customerId", params.customerId);
+      if (params.page) query.append("page", params.page);
+      if (params.limit) query.append("limit", params.limit);
+      if (params.search) query.append("search", params.search);
       const qs = query.toString();
       return request(`/quotations${qs ? `?${qs}` : ""}`);
     },
     getById: (id) => request(`/quotations/${id}`),
     create: (data) => request("/quotations", { method: "POST", body: JSON.stringify(data) }),
-    calculatePreview: (items) => request("/quotations/preview", { method: "POST", body: JSON.stringify({ items }) }),
+    addItem: (id, itemData) => request(`/quotations/${id}/items`, { method: "POST", body: JSON.stringify(itemData) }),
+    update: (id, data) => request(`/quotations/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    calculatePreview: (items, discount = 0) => request("/quotations/preview", { method: "POST", body: JSON.stringify({ items, discount }) }),
     updateStatus: (id, status) => request(`/quotations/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
-    delete: (id) => request(`/quotations/${id}`, { method: "DELETE" })
+    delete: (id) => request(`/quotations/${id}`, { method: "DELETE" }),
+    getPdfUrl: (id) => `${API_BASE_URL}/quotations/${id}/pdf`
   },
 
   // 4. Support Tickets

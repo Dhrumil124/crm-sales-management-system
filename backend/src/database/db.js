@@ -257,6 +257,13 @@ db.serialize(() => {
     )
   `);
 
+  // Safe non-destructive check for discount column on quotations (Day 8 idempotent migration)
+  db.all("PRAGMA table_info(quotations)", (err, columns) => {
+    if (!err && columns && !columns.some(col => col.name === "discount")) {
+      db.run("ALTER TABLE quotations ADD COLUMN discount NUMERIC DEFAULT 0");
+    }
+  });
+
   // 3. Quotation Items Table (Line Items with Validated Rates, Quantities & Cascading)
   db.run(`
     CREATE TABLE IF NOT EXISTS quotation_items (
@@ -483,7 +490,7 @@ setTimeout(autoSeedExistingOrganizations, 300);
 /**
  * Server-side validated calculator for quotation line items and financial totals
  */
-const calculateQuotationTotals = (items = []) => {
+const calculateQuotationTotals = (items = [], discount = 0) => {
   let subtotal = 0;
   let taxTotal = 0;
 
@@ -510,12 +517,14 @@ const calculateQuotationTotals = (items = []) => {
 
   subtotal = Number(subtotal.toFixed(2));
   taxTotal = Number(taxTotal.toFixed(2));
-  const grandTotal = Number((subtotal + taxTotal).toFixed(2));
+  const discountVal = Math.max(0, Number(discount) || 0);
+  const grandTotal = Math.max(0, Number((subtotal + taxTotal - discountVal).toFixed(2)));
 
   return {
     items: validatedItems,
     subtotal,
     taxTotal,
+    discount: discountVal,
     grandTotal
   };
 };
