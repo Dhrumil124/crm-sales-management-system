@@ -123,7 +123,7 @@ export default function TicketView({
       {/* Top Filter & Actions Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Status Filters */}
-        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap bg-slate-100 p-1 rounded-xl max-w-full shrink-0 gap-0.5">
           <button
             onClick={() => setStatusFilter("all")}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
@@ -186,24 +186,24 @@ export default function TicketView({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-sm min-w-[700px]">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left text-sm table-fixed sm:table-auto">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3.5 whitespace-nowrap">Ticket #</th>
-                  <th className="px-6 py-3.5 min-w-[220px]">Subject & Account</th>
-                  <th className="px-6 py-3.5 whitespace-nowrap">Priority</th>
-                  <th className="px-6 py-3.5 whitespace-nowrap">Status</th>
-                  <th className="px-6 py-3.5 whitespace-nowrap">Assigned Agent</th>
-                  <th className="px-6 py-3.5 whitespace-nowrap">Replies</th>
-                  <th className="px-6 py-3.5 text-right whitespace-nowrap">Actions</th>
+                  <th className="px-3 sm:px-4 py-3.5 w-24 sm:w-28 whitespace-nowrap">Ticket #</th>
+                  <th className="px-3 sm:px-4 py-3.5 min-w-0">Subject & Account</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-20 sm:w-24 whitespace-nowrap">Priority</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-24 sm:w-28 whitespace-nowrap">Status</th>
+                  <th className="px-2.5 sm:px-3 py-3.5 w-28 sm:w-32 whitespace-nowrap hidden md:table-cell">Assigned Agent</th>
+                  <th className="px-2 sm:px-3 py-3.5 w-20 whitespace-nowrap hidden sm:table-cell">Replies</th>
+                  <th className="px-3 sm:px-4 py-3.5 w-28 sm:w-36 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredTickets.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
                     {/* Ticket Number */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-4 py-3.5 whitespace-nowrap">
                       <button
                         onClick={() => setActiveTicket(t)}
                         className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
@@ -213,23 +213,26 @@ export default function TicketView({
                     </td>
 
                     {/* Subject & Customer */}
-                    <td className="px-6 py-4 max-w-sm">
+                    <td className="px-3 sm:px-4 py-3.5 min-w-0">
                       <div
                         onClick={() => setActiveTicket(t)}
-                        className="font-semibold text-slate-900 cursor-pointer hover:text-indigo-600 line-clamp-1"
+                        className="font-semibold text-slate-900 cursor-pointer hover:text-indigo-600 truncate"
+                        title={t.title}
                       >
                         {t.title}
                       </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 min-w-0">
                         <IconBuilding className="w-3 h-3 text-slate-400 flex-shrink-0" />
                         <span className="truncate">{t.customerName || "Unassigned Account"}</span>
+                        <span className="md:hidden text-slate-300 shrink-0">•</span>
+                        <span className="md:hidden text-slate-500 truncate">{t.assignedTo || "Unassigned"}</span>
                       </div>
                     </td>
 
                     {/* Priority Badge */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-2 sm:px-3 py-3.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                        className={`inline-flex items-center text-xs font-semibold px-2 sm:px-2.5 py-0.5 rounded-full border whitespace-nowrap ${
                           priorityColors[t.priority] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -238,9 +241,9 @@ export default function TicketView({
                     </td>
 
                     {/* Status Badge */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-2 sm:px-3 py-3.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                        className={`inline-flex items-center text-xs font-semibold px-2 sm:px-2.5 py-0.5 rounded-full border whitespace-nowrap ${
                           statusColors[t.status] || "bg-slate-100 text-slate-700 border-slate-200"
                         }`}
                       >
@@ -248,19 +251,19 @@ export default function TicketView({
                       </span>
                     </td>
 
-                    {/* Assigned To (Simple string attribute) */}
-                    <td className="px-6 py-4 text-xs text-slate-700 font-medium whitespace-nowrap">
+                    {/* Assigned To (Desktop/Tablet) */}
+                    <td className="px-2.5 sm:px-3 py-3.5 text-xs text-slate-700 font-medium whitespace-nowrap hidden md:table-cell">
                       {t.assignedTo || "Unassigned"}
                     </td>
 
                     {/* Comment Count */}
-                    <td className="px-6 py-4 text-xs text-slate-500 font-mono whitespace-nowrap">
+                    <td className="px-2 sm:px-3 py-3.5 text-xs text-slate-500 font-mono whitespace-nowrap hidden sm:table-cell">
                       {t.comments?.length || 0} note{t.comments?.length === 1 ? "" : "s"}
                     </td>
 
                     {/* Actions */}
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-3 sm:px-4 py-3.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5 sm:gap-2">
                         <button
                           onClick={() => setActiveTicket(t)}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors whitespace-nowrap"
@@ -274,7 +277,7 @@ export default function TicketView({
                             }
                           }}
                           title="Delete Ticket"
-                          className="p-1 rounded-lg text-slate-300 hover:text-rose-500"
+                          className="p-1 rounded-lg text-slate-300 hover:text-rose-500 cursor-pointer"
                         >
                           <IconTrash className="w-4 h-4" />
                         </button>

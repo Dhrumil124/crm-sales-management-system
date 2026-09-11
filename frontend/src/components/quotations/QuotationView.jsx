@@ -171,23 +171,23 @@ export default function QuotationView({
           </div>
         ) : (
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-left text-sm min-w-[720px]">
+            <table className="w-full text-left text-sm min-w-full">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-3.5">Quote #</th>
-                  <th className="px-6 py-3.5">Account / Client</th>
-                  <th className="px-6 py-3.5">Status</th>
-                  <th className="px-6 py-3.5">Validity</th>
-                  <th className="px-6 py-3.5">Items</th>
-                  <th className="px-6 py-3.5 text-right">Grand Total</th>
-                  <th className="px-6 py-3.5 text-right">Status Controls</th>
+                  <th className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">Quote #</th>
+                  <th className="px-3.5 sm:px-4 py-3.5">Account / Client</th>
+                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Status</th>
+                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Validity</th>
+                  <th className="px-3 sm:px-4 py-3.5 whitespace-nowrap">Items</th>
+                  <th className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">Grand Total</th>
+                  <th className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">Status Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredQuotations.map((quote) => (
                   <tr key={quote.id} className="hover:bg-slate-50/50 transition-colors">
                     {/* Quote Number */}
-                    <td className="px-6 py-4">
+                    <td className="px-3.5 sm:px-4 py-3.5 whitespace-nowrap">
                       <button
                         onClick={() => setActiveQuoteView(quote)}
                         className="font-mono font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
@@ -197,12 +197,12 @@ export default function QuotationView({
                     </td>
 
                     {/* Customer Name */}
-                    <td className="px-6 py-4">
+                    <td className="px-3.5 sm:px-4 py-3.5">
                       <div className="font-semibold text-slate-900">{quote.customerName || "—"}</div>
                     </td>
 
                     {/* Status Badge */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-3 sm:px-4 py-3.5 whitespace-nowrap">
                       <span
                         className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap ${
                           statusColors[quote.status] || "bg-slate-100 text-slate-700 border-slate-200"
@@ -213,18 +213,18 @@ export default function QuotationView({
                     </td>
 
                     {/* Validity */}
-                    <td className="px-6 py-4 text-xs text-slate-500">
+                    <td className="px-3 sm:px-4 py-3.5 text-xs text-slate-500 whitespace-nowrap">
                       <div>Issued: {quote.issueDate || "—"}</div>
                       <div className="text-[11px] text-slate-400">Valid: {quote.validUntil || "—"}</div>
                     </td>
 
                     {/* Line Items Count */}
-                    <td className="px-6 py-4 text-xs text-slate-600 font-medium">
+                    <td className="px-3 sm:px-4 py-3.5 text-xs text-slate-600 font-medium whitespace-nowrap">
                       {quote.items?.length || 0} line item{quote.items?.length === 1 ? "" : "s"}
                     </td>
 
                     {/* Grand Total */}
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="font-bold text-slate-900 text-base">
                         ₹{Number(quote.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </div>
@@ -234,7 +234,7 @@ export default function QuotationView({
                     </td>
 
                     {/* Status Controls */}
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-3.5 sm:px-4 py-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {quote.status === "Draft" && (
                           <button
