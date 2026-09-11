@@ -336,7 +336,7 @@ export default function App() {
   // Authenticated Workspace Application (Protected)
   // ------------------------------------------------------------------
   return (
-    <div className="flex min-h-screen bg-slate-100 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-100 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
       {/* Toast Alert Feedback */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce">
@@ -377,7 +377,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-screen max-h-screen overflow-hidden">
         <Header
           currentTab={currentTab}
           onRefresh={() => loadAllData(false)}

@@ -95,7 +95,7 @@ export default function AuthPage({ onAuthSuccess }) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen h-screen overflow-y-auto bg-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
       {/* Outer Auth Card Container */}
       <div className="relative w-full max-w-md md:max-w-4xl min-h-[560px] md:min-h-[620px] bg-white rounded-2xl md:rounded-3xl border border-slate-200 shadow-sm md:shadow-2xl overflow-hidden flex flex-col md:flex-row">
         

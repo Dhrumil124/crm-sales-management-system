@@ -128,30 +128,32 @@ export default function Sidebar({
             </button>
           );
         })}
-      </nav>
 
-      {/* User / Organization Profile Info */}
-      {user && (
-        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-            <p className="text-[11px] text-slate-400 truncate">
-              {user.email}
-            </p>
+        {/* User / Organization Profile & Logout directly downside of Support Tickets */}
+        {user && (
+          <div className="pt-3 mt-2 border-t border-slate-800/80">
+            <div className="p-3 rounded-xl bg-slate-800/70 border border-slate-700/60 flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-white truncate">{user.name}</p>
+                <p className="text-[11px] text-slate-400 truncate">
+                  {user.email}
+                </p>
+              </div>
+              {onLogout && (
+                <button
+                  onClick={handleLogoutClick}
+                  title="Sign Out"
+                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
-          {onLogout && (
-            <button
-              onClick={handleLogoutClick}
-              title="Sign Out"
-              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/60 transition-colors cursor-pointer shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
+        )}
+      </nav>
     </>
   );
 
@@ -168,15 +170,15 @@ export default function Sidebar({
 
       {/* Mobile / Tablet Off-Canvas Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-slate-900 text-slate-200 flex flex-col border-r border-slate-800 shadow-2xl transition-transform duration-200 ease-in-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-full max-h-screen bg-slate-900 text-slate-200 flex flex-col border-r border-slate-800 shadow-2xl transition-transform duration-200 ease-in-out lg:hidden overflow-y-auto ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full pointer-events-none"
         }`}
       >
         {renderSidebarContent(true)}
       </aside>
 
-      {/* Desktop Persistent Sidebar (Identical to reference PC design) */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 text-slate-200 flex-col flex-shrink-0 min-h-screen border-r border-slate-800">
+      {/* Desktop Persistent Sidebar (Fixed in place, never scrolls away) */}
+      <aside className="hidden lg:flex w-64 h-screen max-h-screen bg-slate-900 text-slate-200 flex-col flex-shrink-0 border-r border-slate-800 sticky top-0 overflow-y-auto">
         {renderSidebarContent(false)}
       </aside>
     </>
