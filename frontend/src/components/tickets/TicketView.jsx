@@ -182,7 +182,7 @@ export default function TicketView({
               onClick={openCreateModal}
               className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs"
             >
-              + Open Ticket
+              Create Ticket
             </button>
           </div>
         ) : (

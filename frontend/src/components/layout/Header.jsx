@@ -1,11 +1,7 @@
 import React from "react";
-import { IconPlus, IconRefresh } from "../common/Icons";
 
 export default function Header({
   currentTab,
-  onRefresh,
-  isRefreshing,
-  onOpenCreateModal,
   user,
   onLogout
 }) {
@@ -32,15 +28,7 @@ export default function Header({
     }
   };
 
-  const actionLabels = {
-    crm: "+ Add Contact / Lead",
-    pipeline: "+ New Deal",
-    quotations: "+ New Quotation",
-    tickets: "+ Open Ticket"
-  };
-
   const currentMeta = titles[currentTab] || titles.dashboard;
-  const actionLabel = actionLabels[currentTab];
 
   return (
     <header className="bg-white border-b border-slate-200 px-8 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-10 shadow-xs">
@@ -61,36 +49,17 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          title="Refresh data from server"
-          className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50 cursor-pointer"
-        >
-          <IconRefresh className={`w-4 h-4 ${isRefreshing ? "animate-spin text-indigo-600" : ""}`} />
-        </button>
-
-        {actionLabel && (
-          <button
-            onClick={() => onOpenCreateModal(currentTab)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm shadow-md shadow-indigo-600/20 transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <IconPlus className="w-4 h-4" />
-            <span>{actionLabel}</span>
-          </button>
-        )}
-
         {/* User Identity & Logout Button */}
         {user && (
-          <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
-            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold shadow-xs shrink-0">
               {user.name ? user.name.charAt(0).toUpperCase() : "U"}
             </div>
-            <div className="hidden xl:block text-left">
-              <div className="text-xs font-semibold text-slate-800 leading-tight">
+            <div className="hidden sm:block text-left min-w-0">
+              <div className="text-xs font-semibold text-slate-800 leading-tight truncate">
                 {user.name}
               </div>
-              <div className="text-[11px] text-slate-400 leading-tight">
+              <div className="text-[11px] text-slate-400 leading-tight truncate">
                 {user.email}
               </div>
             </div>
@@ -98,7 +67,7 @@ export default function Header({
               <button
                 onClick={onLogout}
                 title="Log out of session"
-                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 text-xs font-medium text-slate-600 transition-colors cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 text-xs font-medium text-slate-600 transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none inline-flex items-center justify-center"
               >
                 Log Out
               </button>
