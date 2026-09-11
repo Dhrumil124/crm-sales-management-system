@@ -18,6 +18,7 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Core Data States from Backend
   const [dashboardSummary, setDashboardSummary] = useState(null);
@@ -112,6 +113,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    setIsMobileMenuOpen(false);
     api.auth.logout();
     setCurrentUser(null);
     setDashboardSummary(null);
@@ -358,7 +360,10 @@ export default function App() {
       {/* Main Sidebar */}
       <Sidebar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={(tab) => {
+          setCurrentTab(tab);
+          setIsMobileMenuOpen(false);
+        }}
         counts={{
           customers: customers.length,
           deals: deals.length,
@@ -367,6 +372,8 @@ export default function App() {
         }}
         user={currentUser}
         onLogout={handleLogout}
+        isMobileOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -378,9 +385,10 @@ export default function App() {
           onOpenCreateModal={handleOpenCreateModal}
           user={currentUser}
           onLogout={handleLogout}
+          onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
         />
 
-        <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+        <main className="flex-1 p-3.5 sm:p-5 md:p-6 lg:p-8 overflow-y-auto overflow-x-hidden min-w-0">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-96 text-slate-400">
               <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />

@@ -129,12 +129,12 @@ export default function QuotationView({
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Filter & Actions */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex bg-slate-100 p-1 rounded-xl">
+        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full shrink-0">
           {["all", "draft", "sent", "accepted", "declined"].map((tab) => (
             <button
               key={tab}
               onClick={() => setStatusFilter(tab)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${
+              className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all ${
                 statusFilter === tab
                   ? "bg-white text-slate-900 shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
@@ -147,7 +147,7 @@ export default function QuotationView({
 
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition-all self-start md:self-auto"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition-all self-start md:self-auto shrink-0 whitespace-nowrap"
         >
           <IconPlus className="w-3.5 h-3.5" />
           <span>New Quotation</span>
@@ -170,8 +170,8 @@ export default function QuotationView({
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left text-sm min-w-[720px]">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
                   <th className="px-6 py-3.5">Quote #</th>
@@ -303,8 +303,8 @@ export default function QuotationView({
 
       {/* Interactive Quotation Builder Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="font-bold text-slate-900 text-lg">Create New Quotation</h3>
@@ -327,7 +327,7 @@ export default function QuotationView({
             )}
 
             <form onSubmit={handleCreateSubmit} className="mt-4 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Select Client *
@@ -392,7 +392,7 @@ export default function QuotationView({
                       key={idx}
                       className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 grid grid-cols-12 gap-2 items-center text-xs"
                     >
-                      <div className="col-span-5">
+                      <div className="col-span-12 md:col-span-5">
                         <input
                           type="text"
                           required
@@ -402,7 +402,7 @@ export default function QuotationView({
                           className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:border-indigo-500"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-3 md:col-span-2">
                         <input
                           type="number"
                           min="1"
@@ -413,7 +413,7 @@ export default function QuotationView({
                           className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:border-indigo-500 text-center"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-4 md:col-span-2">
                         <input
                           type="number"
                           min="0"
@@ -425,7 +425,7 @@ export default function QuotationView({
                           className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:border-indigo-500 text-right"
                         />
                       </div>
-                      <div className="col-span-2">
+                      <div className="col-span-3 md:col-span-2">
                         <input
                           type="number"
                           min="0"
@@ -436,12 +436,12 @@ export default function QuotationView({
                           className="w-full px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:border-indigo-500 text-right"
                         />
                       </div>
-                      <div className="col-span-1 text-center">
+                      <div className="col-span-2 md:col-span-1 flex justify-center">
                         <button
                           type="button"
                           disabled={items.length === 1}
                           onClick={() => handleRemoveItem(idx)}
-                          className="text-slate-400 hover:text-rose-500 disabled:opacity-20"
+                          className="text-slate-400 hover:text-rose-500 disabled:opacity-20 p-1"
                         >
                           <IconTrash className="w-4 h-4" />
                         </button>
@@ -452,19 +452,19 @@ export default function QuotationView({
               </div>
 
               {/* Real-time Calculation Summary Preview */}
-              <div className="p-4 rounded-xl bg-slate-900 text-white flex items-center justify-between">
+              <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                 <div>
                   <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
                     Live Calculation Preview
                   </div>
                   <div className="text-xs text-slate-300 mt-0.5">
-                    Subtotal: ₹{previewTotals.subtotal.toLocaleString("en-IN")} | Tax: ₹{previewTotals.taxTotal.toLocaleString("en-IN")}
+                    Subtotal: ₹{previewTotals.subtotal.toLocaleString("en-IN")} + Taxes: ₹{previewTotals.taxTotal.toLocaleString("en-IN")}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-xs text-indigo-300 font-medium">Grand Total</div>
-                  <div className="text-xl font-bold text-white">
-                    ₹{previewTotals.grandTotal.toLocaleString("en-IN")}
+                <div className="text-left sm:text-right">
+                  <div className="text-xs text-slate-400">Total Proposal Value</div>
+                  <div className="text-xl font-bold text-emerald-400">
+                    ₹{previewTotals.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </div>
               </div>
@@ -491,8 +491,8 @@ export default function QuotationView({
 
       {/* View Quotation Proposal Modal */}
       {activeQuoteView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200">
               <div>
                 <span className="text-xs font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -534,8 +534,8 @@ export default function QuotationView({
             </div>
 
             {/* Line items table */}
-            <div className="mt-4">
-              <table className="w-full text-left text-xs">
+            <div className="mt-4 overflow-x-auto w-full">
+              <table className="w-full text-left text-xs min-w-[420px]">
                 <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
                   <tr>
                     <th className="py-2 px-2">Description</th>

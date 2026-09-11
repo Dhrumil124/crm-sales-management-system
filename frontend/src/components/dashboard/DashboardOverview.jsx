@@ -28,11 +28,11 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
   const stagesList = ["Lead", "Contacted", "Proposal", "Negotiation", "Won", "Lost"];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto">
       {/* 4 Module KPI Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* CRM Metric Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               CRM Module
@@ -62,7 +62,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
         </div>
 
         {/* Sales Pipeline Metric Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Sales Pipeline
@@ -92,7 +92,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
         </div>
 
         {/* Quotation Metric Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Quotation Module
@@ -122,7 +122,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
         </div>
 
         {/* Support Tickets Metric Card */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Support Tickets
@@ -161,7 +161,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
       {/* Pipeline Stage Distribution & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pipeline Stage Distribution Card */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-bold text-slate-900 text-base">
@@ -220,7 +220,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
         </div>
 
         {/* Quick Launchpad & Shortcuts */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between">
           <div>
             <h3 className="font-bold text-slate-900 text-base">Quick Shortcuts</h3>
             <p className="text-xs text-slate-500 mb-4">
@@ -285,7 +285,7 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
       </div>
 
       {/* Recent Cross-Module Activities Feed */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 border border-slate-200/80 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="font-bold text-slate-900 text-base">
@@ -320,18 +320,18 @@ export default function DashboardOverview({ summary, setCurrentTab, onOpenCreate
               };
 
               return (
-                <div key={index} className="py-3.5 flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-3">
+                <div key={index} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-3 text-sm">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
                     <span
-                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0 ${
                         badgeColors[act.type] || "bg-slate-100 text-slate-700"
                       }`}
                     >
                       {moduleNames[act.type] || act.type}
                     </span>
-                    <span className="font-medium text-slate-800">{act.title}</span>
+                    <span className="font-medium text-slate-800 truncate">{act.title}</span>
                   </div>
-                  <span className="text-xs text-slate-400 font-mono">
+                  <span className="text-xs text-slate-400 font-mono shrink-0 self-end sm:self-auto">
                     {new Date(act.timestamp).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric"

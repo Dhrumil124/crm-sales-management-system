@@ -98,7 +98,7 @@ export default function PipelineView({
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header bar with summary */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
+      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div>
           <h3 className="font-bold text-slate-900 text-base">
             Opportunity Kanban Pipeline
@@ -110,7 +110,7 @@ export default function PipelineView({
 
         <button
           onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs shadow-xs transition-all self-start sm:self-auto shrink-0"
         >
           <IconPlus className="w-3.5 h-3.5" />
           <span>New Opportunity</span>
@@ -118,7 +118,7 @@ export default function PipelineView({
       </div>
 
       {/* Kanban Board Columns Grid */}
-      <div className="flex gap-4 items-start overflow-x-auto pb-6">
+      <div className="flex gap-4 items-start overflow-x-auto pb-6 w-full touch-pan-x">
         {PIPELINE_STAGES.map((col, colIdx) => {
           const stageDeals = deals.filter(d => matchesStage(d.stage, col.id));
           const colValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
@@ -249,8 +249,8 @@ export default function PipelineView({
 
       {/* Add Deal Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 shadow-2xl border border-slate-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-lg">
                 Create Sales Opportunity
@@ -302,7 +302,7 @@ export default function PipelineView({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     Deal Value (₹ INR) *
