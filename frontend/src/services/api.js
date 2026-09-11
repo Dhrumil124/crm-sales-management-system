@@ -4,7 +4,9 @@
  * Automatically injects JWT Bearer token into authenticated requests.
  */
 
-const API_BASE_URL = "http://localhost:5000/api";
+const API_BASE_URL = typeof window !== "undefined" && window.location?.hostname
+  ? `http://${window.location.hostname}:5000/api`
+  : "http://localhost:5000/api";
 const TOKEN_KEY = "crm_auth_token";
 const USER_KEY = "crm_auth_user";
 
