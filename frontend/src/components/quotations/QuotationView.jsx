@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { api } from "../../services/api";
 import {
   IconPlus,
   IconTrash,
@@ -15,6 +16,18 @@ export default function QuotationView({
   const [statusFilter, setStatusFilter] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activeQuoteView, setActiveQuoteView] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const handleDownloadPdf = async (quote) => {
+    try {
+      setDownloadingId(quote.id);
+      await api.quotations.downloadPdf(quote.id, quote.quoteNumber);
+    } catch (err) {
+      alert(err.message || "Failed to download PDF quotation");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   // Dynamic Quote Creation Form State
   const [customerId, setCustomerId] = useState(customers[0]?.id || "");
@@ -250,6 +263,23 @@ export default function QuotationView({
                             Decline
                           </button>
                         )}
+                        <button
+                          onClick={() => handleDownloadPdf(quote)}
+                          disabled={downloadingId === quote.id}
+                          title="Download Quotation PDF"
+                          className="px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors flex items-center gap-1 disabled:opacity-60"
+                        >
+                          {downloadingId === quote.id ? (
+                            <span className="animate-pulse">Loading...</span>
+                          ) : (
+                            <>
+                              <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              <span>PDF</span>
+                            </>
+                          )}
+                        </button>
                         <button
                           onClick={() => {
                             if (confirm(`Delete quotation ${quote.quoteNumber}?`)) {

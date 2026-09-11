@@ -1,7 +1,7 @@
 /**
  * Quotation PDF Generation Service (Day 8 Backend)
- * Generates professional PDF quotations loaded directly from SQLite database records.
- * Uses pdfkit streaming into an in-memory buffer.
+ * Generates an elegantly styled, professional commercial quotation PDF
+ * loaded directly from authoritative SQLite database records.
  */
 
 const PDFDocument = require("pdfkit");
@@ -19,25 +19,25 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
     throw new Error("Quotation ID and organization ID are required.");
   }
 
-  // 1. Direct SQLite fetch with strict tenant isolation
+  // 1. Authoritative SQLite fetch with tenant isolation
   const quotation = await quotationStore.getById(quotationId, organizationId);
   if (!quotation) {
     return null;
   }
 
-  // 2. Fetch organization branding name
+  // 2. Fetch organization company branding
   const org = await get("SELECT name FROM organizations WHERE id = ?", [organizationId]);
-  const organizationName = org ? org.name : "CRM & Sales Management System";
+  const organizationName = org ? org.name : "Camel Communication CRM";
 
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
-        margin: 50,
+        margin: 45,
         size: "A4",
         info: {
-          Title: `Quotation ${quotation.quoteNumber}`,
+          Title: `Commercial Quotation - ${quotation.quoteNumber}`,
           Author: organizationName,
-          Subject: "Quotation Document"
+          Subject: `Quotation for ${quotation.customerName || "Valued Client"}`
         }
       });
 
@@ -53,254 +53,326 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
       });
       doc.on("error", (err) => reject(err));
 
-      // --- PDF DESIGN & CONTENT ---
+      // Page dimensions
+      const pageWidth = 595.28; // A4 width in pt
+      const contentWidth = 505.28; // 595.28 - 2 * 45
+      const leftX = 45;
+      const rightX = leftX + contentWidth;
 
-      // Header Bar
-      doc.rect(50, 45, 495, 4).fill("#4f46e5"); // Indigo top accent
+      // -------------------------------------------------------------
+      // TOP BRANDING BANNER
+      // -------------------------------------------------------------
+      // Deep Indigo top accent banner
+      doc.rect(leftX, 40, contentWidth, 5).fill("#4338ca");
 
-      // Company / Org Name & Title
-      doc.moveDown(0.8);
-      doc
-        .fontSize(20)
-        .font("Helvetica-Bold")
-        .fillColor("#1e293b")
-        .text(organizationName, 50, 60);
-
-      doc
-        .fontSize(10)
-        .font("Helvetica")
-        .fillColor("#64748b")
-        .text("Sales & Quotation Management", 50, 85);
-
-      // Document Title & Number (Right Aligned)
+      // Company Name & Subtitle
       doc
         .fontSize(22)
         .font("Helvetica-Bold")
         .fillColor("#0f172a")
-        .text("QUOTATION", 350, 60, { align: "right" });
+        .text(organizationName, leftX, 58);
 
       doc
-        .fontSize(12)
-        .font("Helvetica-Bold")
-        .fillColor("#4f46e5")
-        .text(quotation.quoteNumber, 350, 85, { align: "right" });
-
-      // Horizontal Divider
-      doc
-        .strokeColor("#e2e8f0")
-        .lineWidth(1)
-        .moveTo(50, 110)
-        .lineTo(545, 110)
-        .stroke();
-
-      // Quotation Metadata & Customer Details
-      const metaY = 125;
-
-      // Left Column: Customer Information
-      doc
-        .fontSize(10)
-        .font("Helvetica-Bold")
-        .fillColor("#475569")
-        .text("PREPARED FOR:", 50, metaY);
-
-      doc
-        .fontSize(12)
-        .font("Helvetica-Bold")
-        .fillColor("#0f172a")
-        .text(quotation.customerName || "Valued Client", 50, metaY + 16);
-
-      let clientDetailsY = metaY + 32;
-      doc.fontSize(9).font("Helvetica").fillColor("#334155");
-
-      if (quotation.customerCompany) {
-        doc.text(quotation.customerCompany, 50, clientDetailsY);
-        clientDetailsY += 13;
-      }
-      if (quotation.customerEmail) {
-        doc.text(`Email: ${quotation.customerEmail}`, 50, clientDetailsY);
-        clientDetailsY += 13;
-      }
-      if (quotation.customerPhone) {
-        doc.text(`Phone: ${quotation.customerPhone}`, 50, clientDetailsY);
-        clientDetailsY += 13;
-      }
-      if (quotation.customerAddress) {
-        doc.text(`Address: ${quotation.customerAddress}`, 50, clientDetailsY);
-        clientDetailsY += 13;
-      }
-
-      // Right Column: Quote Meta (Dates & Status)
-      const rightX = 350;
-      doc
-        .fontSize(9)
+        .fontSize(9.5)
         .font("Helvetica")
         .fillColor("#64748b")
-        .text("Issue Date:", rightX, metaY, { width: 90 })
+        .text("Enterprise Sales Management & Commercial Quotations", leftX, 86);
+
+      // Document Title Badge
+      doc
+        .fontSize(22)
         .font("Helvetica-Bold")
-        .fillColor("#0f172a")
-        .text(quotation.issueDate, rightX + 80, metaY, { align: "right", width: 115 });
-
-      doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#64748b")
-        .text("Valid Until:", rightX, metaY + 16, { width: 90 })
-        .font("Helvetica-Bold")
-        .fillColor("#0f172a")
-        .text(quotation.validUntil, rightX + 80, metaY + 16, { align: "right", width: 115 });
-
-      doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#64748b")
-        .text("Status:", rightX, metaY + 32, { width: 90 })
-        .font("Helvetica-Bold")
-        .fillColor(
-          quotation.status === "Accepted"
-            ? "#059669"
-            : quotation.status === "Declined"
-            ? "#e11d48"
-            : "#2563eb"
-        )
-        .text(quotation.status.toUpperCase(), rightX + 80, metaY + 32, { align: "right", width: 115 });
-
-      // Line Items Table
-      const tableTop = Math.max(clientDetailsY + 15, 210);
-
-      // Table Header Background
-      doc
-        .rect(50, tableTop, 495, 22)
-        .fill("#f8fafc");
-
-      doc
-        .strokeColor("#cbd5e1")
-        .lineWidth(1)
-        .rect(50, tableTop, 495, 22)
-        .stroke();
-
-      // Table Header Titles
-      doc
-        .fontSize(9)
-        .font("Helvetica-Bold")
-        .fillColor("#334155")
-        .text("Item & Description", 60, tableTop + 6, { width: 210 })
-        .text("Qty", 280, tableTop + 6, { width: 40, align: "right" })
-        .text("Unit Price", 330, tableTop + 6, { width: 65, align: "right" })
-        .text("Tax", 405, tableTop + 6, { width: 45, align: "right" })
-        .text("Total", 460, tableTop + 6, { width: 75, align: "right" });
-
-      let currentY = tableTop + 22;
-
-      // Table Rows
-      const items = quotation.items || [];
-      if (items.length === 0) {
-        doc
-          .fontSize(9)
-          .font("Helvetica-Oblique")
-          .fillColor("#94a3b8")
-          .text("No line items listed on this quotation.", 60, currentY + 8);
-        currentY += 25;
-      } else {
-        items.forEach((item, index) => {
-          const rowBg = index % 2 === 1 ? "#fafafa" : "#ffffff";
-          doc.rect(50, currentY, 495, 22).fill(rowBg);
-
-          doc
-            .strokeColor("#f1f5f9")
-            .lineWidth(0.5)
-            .moveTo(50, currentY + 22)
-            .lineTo(545, currentY + 22)
-            .stroke();
-
-          doc
-            .fontSize(9)
-            .font("Helvetica")
-            .fillColor("#1e293b")
-            .text(item.description, 60, currentY + 6, { width: 210, ellipsis: true })
-            .text(String(item.quantity), 280, currentY + 6, { width: 40, align: "right" })
-            .text(`₹${Number(item.unitPrice).toFixed(2)}`, 330, currentY + 6, { width: 65, align: "right" })
-            .text(`${item.taxRate}%`, 405, currentY + 6, { width: 45, align: "right" })
-            .font("Helvetica-Bold")
-            .text(`₹${Number(item.lineTotal).toFixed(2)}`, 460, currentY + 6, { width: 75, align: "right" });
-
-          currentY += 22;
-        });
-      }
-
-      // Financial Summary Block (Right Aligned)
-      currentY += 15;
-      const summaryX = 330;
-      const summaryWidth = 215;
-
-      doc
-        .fontSize(9)
-        .font("Helvetica")
-        .fillColor("#475569")
-        .text("Subtotal:", summaryX, currentY, { width: 90 })
-        .text(`₹${Number(quotation.subtotal).toFixed(2)}`, summaryX + 90, currentY, {
-          width: summaryWidth - 90,
-          align: "right"
-        });
-
-      currentY += 16;
-      doc
-        .text("Tax Total:", summaryX, currentY, { width: 90 })
-        .text(`₹${Number(quotation.taxTotal).toFixed(2)}`, summaryX + 90, currentY, {
-          width: summaryWidth - 90,
-          align: "right"
-        });
-
-      if (Number(quotation.discount) > 0) {
-        currentY += 16;
-        doc
-          .fillColor("#dc2626")
-          .text("Discount:", summaryX, currentY, { width: 90 })
-          .text(`-₹${Number(quotation.discount).toFixed(2)}`, summaryX + 90, currentY, {
-            width: summaryWidth - 90,
-            align: "right"
-          })
-          .fillColor("#475569");
-      }
-
-      currentY += 18;
-      // Grand Total Highlight Box
-      doc
-        .rect(summaryX - 10, currentY - 4, summaryWidth + 10, 26)
-        .fill("#f1f5f9");
+        .fillColor("#4338ca")
+        .text("QUOTATION", 320, 58, { align: "right", width: 230 });
 
       doc
         .fontSize(11)
         .font("Helvetica-Bold")
-        .fillColor("#0f172a")
-        .text("Grand Total:", summaryX, currentY + 3, { width: 90 })
-        .text(`₹${Number(quotation.grandTotal).toFixed(2)}`, summaryX + 90, currentY + 3, {
-          width: summaryWidth - 90,
-          align: "right"
-        });
+        .fillColor("#1e293b")
+        .text(quotation.quoteNumber, 320, 86, { align: "right", width: 230 });
 
-      // Notes Section
-      if (quotation.notes && quotation.notes.trim()) {
-        const notesY = Math.max(currentY + 40, tableTop + items.length * 22 + 40);
+      // Subtle horizontal divider
+      doc
+        .strokeColor("#e2e8f0")
+        .lineWidth(1)
+        .moveTo(leftX, 110)
+        .lineTo(rightX, 110)
+        .stroke();
+
+      // -------------------------------------------------------------
+      // CLIENT & QUOTATION METADATA CARDS
+      // -------------------------------------------------------------
+      const cardY = 122;
+      const colWidth = 242;
+
+      // Left Card: Customer Information
+      doc
+        .roundedRect(leftX, cardY, colWidth, 90, 6)
+        .fillAndStroke("#f8fafc", "#e2e8f0");
+
+      doc
+        .fontSize(8.5)
+        .font("Helvetica-Bold")
+        .fillColor("#4338ca")
+        .text("PREPARED FOR", leftX + 14, cardY + 12);
+
+      doc
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .fillColor("#0f172a")
+        .text(quotation.customerName || "Valued Client", leftX + 14, cardY + 26, { width: colWidth - 28 });
+
+      let cY = cardY + 42;
+      doc.fontSize(8.5).font("Helvetica").fillColor("#475569");
+
+      if (quotation.customerCompany) {
+        doc.text(`Company: ${quotation.customerCompany}`, leftX + 14, cY, { width: colWidth - 28 });
+        cY += 12;
+      }
+      if (quotation.customerEmail) {
+        doc.text(`Email: ${quotation.customerEmail}`, leftX + 14, cY, { width: colWidth - 28 });
+        cY += 12;
+      }
+      if (quotation.customerPhone) {
+        doc.text(`Phone: ${quotation.customerPhone}`, leftX + 14, cY, { width: colWidth - 28 });
+      }
+
+      // Right Card: Quotation Metadata
+      const rightCardX = leftX + colWidth + 21;
+      doc
+        .roundedRect(rightCardX, cardY, colWidth, 90, 6)
+        .fillAndStroke("#f8fafc", "#e2e8f0");
+
+      doc
+        .fontSize(8.5)
+        .font("Helvetica-Bold")
+        .fillColor("#4338ca")
+        .text("QUOTATION DETAILS", rightCardX + 14, cardY + 12);
+
+      const renderMetaLine = (label, value, yPos, valueColor = "#0f172a") => {
         doc
-          .fontSize(10)
+          .fontSize(8.5)
+          .font("Helvetica")
+          .fillColor("#64748b")
+          .text(label, rightCardX + 14, yPos, { width: 90 });
+        doc
           .font("Helvetica-Bold")
-          .fillColor("#334155")
-          .text("Notes / Terms:", 50, notesY);
+          .fillColor(valueColor)
+          .text(value, rightCardX + 105, yPos, { width: colWidth - 119, align: "right" });
+      };
+
+      renderMetaLine("Quote Number:", quotation.quoteNumber, cardY + 28);
+      renderMetaLine("Issue Date:", quotation.issueDate, cardY + 42);
+      renderMetaLine("Valid Until:", quotation.validUntil, cardY + 56);
+
+      const statusColors = {
+        Draft: "#475569",
+        Sent: "#2563eb",
+        Accepted: "#059669",
+        Declined: "#dc2626"
+      };
+      renderMetaLine(
+        "Status:",
+        quotation.status.toUpperCase(),
+        cardY + 70,
+        statusColors[quotation.status] || "#0f172a"
+      );
+
+      // -------------------------------------------------------------
+      // ITEMIZATION TABLE
+      // -------------------------------------------------------------
+      const tableTop = 228;
+      const tableHeaderHeight = 24;
+
+      // Table Header Dark Container
+      doc
+        .roundedRect(leftX, tableTop, contentWidth, tableHeaderHeight, 4)
+        .fill("#1e293b");
+
+      // Column widths & offsets
+      const col = {
+        num: { x: leftX + 8, w: 22 },
+        desc: { x: leftX + 35, w: 225 },
+        qty: { x: leftX + 265, w: 45 },
+        price: { x: leftX + 315, w: 65 },
+        tax: { x: leftX + 385, w: 45 },
+        total: { x: leftX + 435, w: 62 }
+      };
+
+      // Table Header Titles
+      doc
+        .fontSize(8.5)
+        .font("Helvetica-Bold")
+        .fillColor("#ffffff")
+        .text("#", col.num.x, tableTop + 7, { width: col.num.w, align: "center" })
+        .text("Item & Description", col.desc.x, tableTop + 7, { width: col.desc.w })
+        .text("Qty", col.qty.x, tableTop + 7, { width: col.qty.w, align: "right" })
+        .text("Unit Price", col.price.x, tableTop + 7, { width: col.price.w, align: "right" })
+        .text("Tax %", col.tax.x, tableTop + 7, { width: col.tax.w, align: "right" })
+        .text("Amount", col.total.x, tableTop + 7, { width: col.total.w, align: "right" });
+
+      let currentY = tableTop + tableHeaderHeight;
+      const items = quotation.items || [];
+
+      if (items.length === 0) {
+        doc
+          .rect(leftX, currentY, contentWidth, 26)
+          .fill("#ffffff")
+          .strokeColor("#f1f5f9")
+          .stroke();
 
         doc
           .fontSize(9)
-          .font("Helvetica")
-          .fillColor("#64748b")
-          .text(quotation.notes.trim(), 50, notesY + 16, { width: 495 });
+          .font("Helvetica-Oblique")
+          .fillColor("#94a3b8")
+          .text("No line items listed on this quotation.", leftX + 15, currentY + 8);
+        currentY += 26;
+      } else {
+        items.forEach((item, index) => {
+          const rowHeight = 24;
+          const isEven = index % 2 === 0;
+
+          // Alternating row background
+          doc
+            .rect(leftX, currentY, contentWidth, rowHeight)
+            .fill(isEven ? "#ffffff" : "#f8fafc");
+
+          // Row divider line
+          doc
+            .strokeColor("#e2e8f0")
+            .lineWidth(0.5)
+            .moveTo(leftX, currentY + rowHeight)
+            .lineTo(rightX, currentY + rowHeight)
+            .stroke();
+
+          // Row contents
+          doc
+            .fontSize(8.5)
+            .font("Helvetica")
+            .fillColor("#64748b")
+            .text(String(index + 1), col.num.x, currentY + 7, { width: col.num.w, align: "center" });
+
+          doc
+            .font("Helvetica-Bold")
+            .fillColor("#0f172a")
+            .text(item.description, col.desc.x, currentY + 7, { width: col.desc.w, ellipsis: true });
+
+          doc
+            .font("Helvetica")
+            .fillColor("#334155")
+            .text(String(item.quantity), col.qty.x, currentY + 7, { width: col.qty.w, align: "right" })
+            .text(`INR ${Number(item.unitPrice).toFixed(2)}`, col.price.x, currentY + 7, { width: col.price.w, align: "right" })
+            .text(`${item.taxRate}%`, col.tax.x, currentY + 7, { width: col.tax.w, align: "right" })
+            .font("Helvetica-Bold")
+            .fillColor("#0f172a")
+            .text(`INR ${Number(item.lineTotal).toFixed(2)}`, col.total.x, currentY + 7, { width: col.total.w, align: "right" });
+
+          currentY += rowHeight;
+        });
       }
 
-      // Footer
-      const footerY = 770;
+      // Outer table border bottom
+      doc
+        .strokeColor("#cbd5e1")
+        .lineWidth(1)
+        .moveTo(leftX, currentY)
+        .lineTo(rightX, currentY)
+        .stroke();
+
+      // -------------------------------------------------------------
+      // FINANCIAL SUMMARY & TOTALS
+      // -------------------------------------------------------------
+      currentY += 16;
+      const summaryBoxWidth = 230;
+      const summaryBoxX = rightX - summaryBoxWidth;
+
+      const renderSummaryRow = (label, amount, isDeduction = false, isBold = false) => {
+        doc
+          .fontSize(9)
+          .font(isBold ? "Helvetica-Bold" : "Helvetica")
+          .fillColor(isDeduction ? "#dc2626" : "#475569")
+          .text(label, summaryBoxX, currentY, { width: 100 });
+
+        doc
+          .font("Helvetica-Bold")
+          .fillColor(isDeduction ? "#dc2626" : "#0f172a")
+          .text(
+            `${isDeduction ? "-" : ""}INR ${Number(amount).toFixed(2)}`,
+            summaryBoxX + 105,
+            currentY,
+            { width: summaryBoxWidth - 105, align: "right" }
+          );
+
+        currentY += 16;
+      };
+
+      renderSummaryRow("Subtotal:", quotation.subtotal);
+      renderSummaryRow("Estimated Tax:", quotation.taxTotal);
+
+      if (Number(quotation.discount) > 0) {
+        renderSummaryRow("Discount Applied:", quotation.discount, true);
+      }
+
+      currentY += 4;
+
+      // Grand Total Highlight Container (Indigo Banner)
+      doc
+        .roundedRect(summaryBoxX - 6, currentY - 4, summaryBoxWidth + 6, 28, 5)
+        .fill("#4338ca");
+
+      doc
+        .fontSize(11)
+        .font("Helvetica-Bold")
+        .fillColor("#ffffff")
+        .text("GRAND TOTAL:", summaryBoxX + 6, currentY + 3, { width: 100 });
+
+      doc
+        .fontSize(12)
+        .font("Helvetica-Bold")
+        .fillColor("#ffffff")
+        .text(`INR ${Number(quotation.grandTotal).toFixed(2)}`, summaryBoxX + 100, currentY + 3, {
+          width: summaryBoxWidth - 110,
+          align: "right"
+        });
+
+      // -------------------------------------------------------------
+      // NOTES / TERMS & CONDITIONS SECTION
+      // -------------------------------------------------------------
+      const notesBoxY = Math.max(currentY + 45, tableTop + items.length * 24 + 65);
+      const notesBoxWidth = 320;
+
+      if (quotation.notes && quotation.notes.trim()) {
+        doc
+          .roundedRect(leftX, notesBoxY, notesBoxWidth, 75, 6)
+          .fillAndStroke("#f8fafc", "#e2e8f0");
+
+        doc
+          .fontSize(8.5)
+          .font("Helvetica-Bold")
+          .fillColor("#4338ca")
+          .text("NOTES & TERMS OF SERVICE", leftX + 12, notesBoxY + 10);
+
+        doc
+          .fontSize(8.5)
+          .font("Helvetica")
+          .fillColor("#475569")
+          .text(quotation.notes.trim(), leftX + 12, notesBoxY + 24, {
+            width: notesBoxWidth - 24,
+            height: 45,
+            ellipsis: true
+          });
+      }
+
+      // -------------------------------------------------------------
+      // FOOTER
+      // -------------------------------------------------------------
+      const footerY = 760;
+
       doc
         .strokeColor("#e2e8f0")
-        .lineWidth(0.5)
-        .moveTo(50, footerY)
-        .lineTo(545, footerY)
+        .lineWidth(0.75)
+        .moveTo(leftX, footerY)
+        .lineTo(rightX, footerY)
         .stroke();
 
       doc
@@ -308,10 +380,10 @@ const generateQuotationPdf = async (quotationId, organizationId) => {
         .font("Helvetica")
         .fillColor("#94a3b8")
         .text(
-          `Generated automatically by ${organizationName} on ${new Date().toISOString().split("T")[0]} | Valid until ${quotation.validUntil}`,
-          50,
+          `This quotation is computer-generated by ${organizationName} on ${new Date().toISOString().split("T")[0]}. Valid through ${quotation.validUntil}.`,
+          leftX,
           footerY + 8,
-          { align: "center", width: 495 }
+          { align: "center", width: contentWidth }
         );
 
       doc.end();

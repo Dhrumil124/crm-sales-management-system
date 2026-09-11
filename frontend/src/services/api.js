@@ -158,7 +158,25 @@ export const api = {
     calculatePreview: (items, discount = 0) => request("/quotations/preview", { method: "POST", body: JSON.stringify({ items, discount }) }),
     updateStatus: (id, status) => request(`/quotations/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
     delete: (id) => request(`/quotations/${id}`, { method: "DELETE" }),
-    getPdfUrl: (id) => `${API_BASE_URL}/quotations/${id}/pdf`
+    getPdfUrl: (id) => `${API_BASE_URL}/quotations/${id}/pdf`,
+    downloadPdf: async (id, quoteNumber = "quotation") => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const res = await fetch(`${API_BASE_URL}/quotations/${id}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to download PDF (HTTP ${res.status})`);
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `quotation-${quoteNumber}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(link);
+    }
   },
 
   // 4. Support Tickets
