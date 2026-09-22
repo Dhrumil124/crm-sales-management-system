@@ -238,7 +238,7 @@ async function ensureDatabaseSeeded() {
     const initialQuotes = [
       {
         id: "quote-demo-001",
-        quoteNumber: "QT-1001",
+        quoteNumber: "AUTO-00001",
         customerId: "cust-1",
         items: [
           { description: "Enterprise Platform License (Annual)", quantity: 50, unitPrice: 800, taxRate: 10, lineTotal: 40000 },
@@ -254,7 +254,7 @@ async function ensureDatabaseSeeded() {
       },
       {
         id: "quote-2",
-        quoteNumber: "QT-1002",
+        quoteNumber: "AUTO-00002",
         customerId: "cust-2",
         items: [
           { description: "Custom AI Pipeline Deployment", quantity: 1, unitPrice: 20000, taxRate: 10, lineTotal: 20000 },
@@ -270,7 +270,7 @@ async function ensureDatabaseSeeded() {
       },
       {
         id: "quote-3",
-        quoteNumber: "QT-1003",
+        quoteNumber: "AUTO-00003",
         customerId: "cust-1",
         items: [
           { description: "Compliance & Security Module", quantity: 1, unitPrice: 12000, taxRate: 10, lineTotal: 12000 }
@@ -309,7 +309,7 @@ async function ensureDatabaseSeeded() {
     const initialTickets = [
       {
         id: "tck-demo-001",
-        ticketNumber: "TCK-1001",
+        ticketNumber: "TICKET-00001",
         customerId: "cust-1",
         title: "SSO SAML authentication intermittent timeout",
         description: "Our users experienced two login timeouts this morning when authenticating via Okta SSO.",
@@ -319,7 +319,7 @@ async function ensureDatabaseSeeded() {
       },
       {
         id: "tck-2",
-        ticketNumber: "TCK-1002",
+        ticketNumber: "TICKET-00002",
         customerId: "cust-2",
         title: "Rate limit increase request for production webhook endpoints",
         description: "Requesting rate limit increase from 60 req/min to 300 req/min ahead of our upcoming launch.",
@@ -329,7 +329,7 @@ async function ensureDatabaseSeeded() {
       },
       {
         id: "tck-3",
-        ticketNumber: "TCK-1003",
+        ticketNumber: "TICKET-00003",
         customerId: "cust-1",
         title: "Billing receipt discrepancy for August compliance invoice",
         description: "The VAT registration number was truncated on the printed PDF receipt.",
