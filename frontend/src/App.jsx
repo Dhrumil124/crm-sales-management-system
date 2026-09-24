@@ -39,72 +39,124 @@ export default function App() {
 
   // 1. Session Rehydration on Initial Load
   useEffect(() => {
-    const verifyAuthSession = async () => {
+    let isMounted = true;
+
+    const verifyAuthSession = async (retries = 2) => {
       const token = api.auth.getToken();
       if (!token) {
-        setCurrentUser(null);
-        setAuthChecking(false);
-        setIsLoading(false);
+        if (isMounted) {
+          setCurrentUser(null);
+          setAuthChecking(false);
+          setIsLoading(false);
+        }
         return;
       }
 
-      try {
-        const response = await api.auth.getMe();
-        if (response?.user) {
-          setCurrentUser(response.user);
-          api.auth.setSession(token, response.user);
-        } else {
-          api.auth.logout();
-          setCurrentUser(null);
+      let attempt = 0;
+      while (attempt <= retries) {
+        try {
+          const response = await api.auth.getMe();
+          if (!isMounted) return;
+          if (response?.user) {
+            setCurrentUser(response.user);
+            api.auth.setSession(token, response.user);
+          } else {
+            api.auth.logout();
+            setCurrentUser(null);
+          }
+          break;
+        } catch (err) {
+          attempt++;
+          // Network connection error (backend still starting up)
+          const isNetworkError = !err.status && (err.message?.includes("fetch") || err.name === "TypeError");
+          if (isNetworkError && attempt <= retries) {
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            continue;
+          }
+
+          if (isMounted) {
+            // Only invalidate session on explicit auth rejection
+            if (err.status === 401) {
+              api.auth.logout();
+              setCurrentUser(null);
+            }
+          }
+          break;
         }
-      } catch {
-        // Expired or invalid token
-        api.auth.logout();
-        setCurrentUser(null);
-      } finally {
+      }
+
+      if (isMounted) {
         setAuthChecking(false);
       }
     };
 
     verifyAuthSession();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // 2. Centralized data fetch from Express backend (Protected)
-  const loadAllData = useCallback(async (quiet = false) => {
-    if (!quiet) setIsRefreshing(true);
-    try {
-      // Test health first
-      await api.checkHealth();
-
-      // Fetch all 4 modules and dashboard summary in parallel
-      const [summaryData, crmData, dealsData, quotesData, ticketsData] = await Promise.all([
-        api.getDashboardSummary(),
-        api.crm.getAll(),
-        api.pipeline.getAll(),
-        api.quotations.getAll(),
-        api.tickets.getAll()
-      ]);
-
-      setDashboardSummary(summaryData);
-      setCustomers(crmData);
-      setDeals(dealsData);
-      setQuotations(quotesData);
-      setTickets(ticketsData);
-    } catch (err) {
-      console.warn("Backend connection failed:", err.message);
-      showToast("Could not sync backend data: " + err.message, "error");
-    } finally {
+  // 2. Centralized data fetch from Express backend (Protected with startup retry)
+  const loadAllData = useCallback(async (quiet = false, retries = 3) => {
+    const token = api.auth.getToken();
+    if (!token) {
       setIsLoading(false);
       setIsRefreshing(false);
+      return;
     }
+
+    if (!quiet) setIsRefreshing(true);
+
+    let attempt = 0;
+    while (attempt <= retries) {
+      try {
+        // Test health first
+        await api.checkHealth();
+
+        // Fetch all 4 modules and dashboard summary in parallel
+        const [summaryData, crmData, dealsData, quotesData, ticketsData] = await Promise.all([
+          api.getDashboardSummary(),
+          api.crm.getAll(),
+          api.pipeline.getAll(),
+          api.quotations.getAll(),
+          api.tickets.getAll()
+        ]);
+
+        setDashboardSummary(summaryData);
+        setCustomers(crmData);
+        setDeals(dealsData);
+        setQuotations(quotesData);
+        setTickets(ticketsData);
+        break; // Successfully loaded data
+      } catch (err) {
+        attempt++;
+        const isNetworkError = !err.status && (err.message?.includes("fetch") || err.name === "TypeError");
+        if (isNetworkError && attempt <= retries) {
+          console.log(`Backend is warming up... Retrying data fetch (${attempt}/${retries})`);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        console.warn("Backend connection failed:", err.message);
+        // Only show error toast if authenticated and session is still active
+        if (api.auth.getToken()) {
+          showToast("Could not sync backend data: " + err.message, "error");
+        }
+        break;
+      }
+    }
+
+    setIsLoading(false);
+    setIsRefreshing(false);
   }, []);
 
-  // Sync data once authenticated
+  // Sync data once authenticated and initial auth verification is completed
   useEffect(() => {
-    if (currentUser) {
+    if (!authChecking && currentUser && api.auth.getToken()) {
       loadAllData();
     }
-  }, [currentUser, loadAllData]);
+  }, [authChecking, currentUser, loadAllData]);
 
   // Authentication Handlers
   const handleAuthSuccess = (user) => {
@@ -116,6 +168,7 @@ export default function App() {
     setIsMobileMenuOpen(false);
     api.auth.logout();
     setCurrentUser(null);
+    setToast(null);
     setDashboardSummary(null);
     setCustomers([]);
     setDeals([]);

@@ -43,7 +43,9 @@ async function request(endpoint, options = {}) {
         localStorage.removeItem(USER_KEY);
       }
 
-      throw new Error(errorMessage);
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
     }
 
     return await response.json();
@@ -62,6 +64,8 @@ export const api = {
     getToken: () => localStorage.getItem(TOKEN_KEY),
     getUser: () => {
       try {
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) return null;
         const u = localStorage.getItem(USER_KEY);
         return u ? JSON.parse(u) : null;
       } catch {
