@@ -147,7 +147,7 @@ export default function TicketView({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 sm:pb-0">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Filter & Actions Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Status Filters */}
