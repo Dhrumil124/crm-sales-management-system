@@ -155,23 +155,24 @@ export default function QuotationView({
       </div>
 
       {/* Quotations Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {filteredQuotations.length === 0 ? (
-          <div className="py-16 text-center">
-            <h4 className="text-base font-semibold text-slate-800">No quotations found</h4>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              No quotations match the selected status filter. Draft a new quotation to get started.
-            </p>
-            <button
-              onClick={openCreateModal}
-              className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs"
-            >
-              + Create Quotation
-            </button>
-          </div>
-        ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left text-sm table-fixed">
+      {filteredQuotations.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs py-16 text-center">
+          <h4 className="text-base font-semibold text-slate-800">No quotations found</h4>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            No quotations match the selected status filter. Draft a new quotation to get started.
+          </p>
+          <button
+            onClick={openCreateModal}
+            className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-xs"
+          >
+            + Create Quotation
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table View (Hidden on mobile/tablet screens < 768px) */}
+          <div className="hidden md:block bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden w-full overflow-x-auto">
+            <table className="w-full text-left text-sm table-fixed min-w-[700px]">
               <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
                 <tr>
                   <th className="px-2.5 sm:px-3 py-3.5 w-[10%] whitespace-nowrap">Quote #</th>
@@ -303,8 +304,125 @@ export default function QuotationView({
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+
+          {/* Mobile Card View (Shown on screens < 768px, spaced standalone cards) */}
+          <div className="block md:hidden space-y-3.5">
+            {filteredQuotations.map((quote) => (
+              <div
+                key={quote.id}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-4 space-y-3 hover:border-slate-300 transition-all"
+              >
+                {/* Row 1: Quote #, Status Badge, Client, and Grand Total */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setActiveQuoteView(quote)}
+                        className="font-mono font-bold text-sm text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                      >
+                        {quote.quoteNumber}
+                      </button>
+                      <span
+                        className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          statusColors[quote.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {quote.status}
+                      </span>
+                    </div>
+                    <div className="font-semibold text-slate-900 text-sm mt-1 truncate">
+                      {quote.customerName || "—"}
+                    </div>
+                  </div>
+
+                  {/* Grand Total */}
+                  <div className="text-right shrink-0">
+                    <div className="font-bold text-slate-900 text-base">
+                      ₹{Number(quote.grandTotal).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {quote.items?.length || 0} line item{quote.items?.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Date & Tax breakdown */}
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-500 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span>Issued: <span className="font-medium text-slate-700">{quote.issueDate || "—"}</span></span>
+                    <span>Valid: <span className="font-medium text-slate-700">{quote.validUntil || "—"}</span></span>
+                  </div>
+                  <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-200/60 flex items-center justify-between">
+                    <span>Subtotal: ₹{Number(quote.subtotal || 0).toLocaleString("en-IN")}</span>
+                    <span>Tax: ₹{Number(quote.taxTotal || 0).toLocaleString("en-IN")}</span>
+                  </div>
+                </div>
+
+                {/* Row 3: Actions Bar */}
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {quote.status === "Draft" && (
+                      <button
+                        onClick={() => onUpdateStatus(quote.id, "Sent")}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors cursor-pointer"
+                      >
+                        Send
+                      </button>
+                    )}
+                    {quote.status !== "Draft" && quote.status !== "Accepted" && (
+                      <button
+                        onClick={() => onUpdateStatus(quote.id, "Accepted")}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                      >
+                        Accept
+                      </button>
+                    )}
+                    {quote.status !== "Draft" && quote.status !== "Declined" && (
+                      <button
+                        onClick={() => onUpdateStatus(quote.id, "Declined")}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <button
+                      onClick={() => handleDownloadPdf(quote)}
+                      disabled={downloadingId === quote.id}
+                      title="Download Quotation PDF"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition-colors flex items-center gap-1 shrink-0 cursor-pointer disabled:opacity-60"
+                    >
+                      {downloadingId === quote.id ? (
+                        <span className="animate-pulse">...</span>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <span>PDF</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete quotation ${quote.quoteNumber}?`)) {
+                          onDeleteQuotation(quote.id);
+                        }
+                      }}
+                      title="Delete Quotation"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
+                    >
+                      <IconTrash className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Interactive Quotation Builder Modal */}
       {isCreateModalOpen && (
