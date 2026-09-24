@@ -138,18 +138,25 @@ export default function QuotationView({
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Filter & Actions */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full shrink-0">
-          {["all", "draft", "sent", "accepted", "declined"].map((tab) => (
+        {/* Status Filters */}
+        <div className="flex flex-wrap sm:flex-nowrap bg-slate-100 p-1 rounded-xl max-w-full shrink-0 gap-0.5">
+          <button
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+              statusFilter === "all" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            All ({quotations.length})
+          </button>
+          {["Draft", "Sent", "Accepted", "Declined"].map((s) => (
             <button
-              key={tab}
-              onClick={() => setStatusFilter(tab)}
-              className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-xs font-semibold capitalize whitespace-nowrap transition-all ${
-                statusFilter === tab
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
+              key={s}
+              onClick={() => setStatusFilter(s.toLowerCase())}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                statusFilter === s.toLowerCase() ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {tab === "all" ? "All Proposals" : tab}
+              {s}
             </button>
           ))}
         </div>
