@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { api } from "../../services/api";
+import ConfirmModal from "../common/ConfirmModal";
 import {
   IconPlus,
   IconTrash,
@@ -23,6 +24,7 @@ export default function TicketView({
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [activeTicket, setActiveTicket] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [agents, setAgents] = useState([]);
@@ -58,6 +60,16 @@ export default function TicketView({
   // Comment reply state
   const [replyText, setReplyText] = useState("");
   const replyAuthor = user?.name || "Support Agent";
+
+  const handleDeletePrompt = (ticket) => {
+    setConfirmDialog({
+      title: "Delete Ticket",
+      message: `Are you sure you want to permanently delete ticket ${ticket.ticketNumber}? This action cannot be undone.`,
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: () => onDeleteTicket(ticket.id)
+    });
+  };
 
   const filteredTickets = useMemo(() => {
     const list = tickets.filter((t) => {
@@ -300,11 +312,7 @@ export default function TicketView({
                           View Thread
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Delete ticket ${t.ticketNumber}?`)) {
-                              onDeleteTicket(t.id);
-                            }
-                          }}
+                          onClick={() => handleDeletePrompt(t)}
                           title="Delete Ticket"
                           className="p-1 rounded-lg text-slate-300 hover:text-rose-500 cursor-pointer shrink-0"
                         >
@@ -385,11 +393,7 @@ export default function TicketView({
                     View Thread
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Delete ticket ${t.ticketNumber}?`)) {
-                        onDeleteTicket(t.id);
-                      }
-                    }}
+                    onClick={() => handleDeletePrompt(t)}
                     title="Delete Ticket"
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                   >
@@ -649,6 +653,19 @@ export default function TicketView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Custom Confirmation Popup */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          type={confirmDialog.type}
+          onConfirm={confirmDialog.onConfirm}
+          onClose={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

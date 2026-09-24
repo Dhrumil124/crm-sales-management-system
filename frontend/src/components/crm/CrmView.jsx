@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import ConfirmModal from "../common/ConfirmModal";
 import {
   IconSearch,
   IconFilter,
@@ -29,6 +30,7 @@ export default function CrmView({
   const [activeTypeTab, setActiveTypeTab] = useState("all"); // 'all' | 'lead' | 'customer'
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -112,13 +114,28 @@ export default function CrmView({
     }
   };
 
-  const handleConvertToCustomer = async (lead) => {
-    if (confirm(`Convert "${lead.name}" (${lead.company}) from Lead to Customer?`)) {
-      await onUpdateCustomer(lead.id, {
-        type: "customer",
-        status: "Active"
-      });
-    }
+  const handleConvertToCustomer = (lead) => {
+    setConfirmDialog({
+      title: "Convert Lead to Customer",
+      message: `Convert "${lead.name}" (${lead.company || "Individual Contact"}) from Lead to Customer account?`,
+      confirmText: "Convert to Customer",
+      type: "success",
+      onConfirm: () =>
+        onUpdateCustomer(lead.id, {
+          type: "customer",
+          status: "Active"
+        })
+    });
+  };
+
+  const handleDeletePrompt = (contact) => {
+    setConfirmDialog({
+      title: "Delete Contact",
+      message: `Are you sure you want to permanently delete "${contact.name}"? This action cannot be undone.`,
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: () => onDeleteCustomer(contact.id)
+    });
   };
 
   return (
@@ -319,11 +336,7 @@ export default function CrmView({
                             <IconEdit className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete contact "${contact.name}"?`)) {
-                                onDeleteCustomer(contact.id);
-                              }
-                            }}
+                            onClick={() => handleDeletePrompt(contact)}
                             title="Delete Contact"
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                           >
@@ -428,11 +441,7 @@ export default function CrmView({
                         <span>Edit</span>
                       </button>
                       <button
-                        onClick={() => {
-                          if (confirm(`Delete contact "${contact.name}"?`)) {
-                            onDeleteCustomer(contact.id);
-                          }
-                        }}
+                        onClick={() => handleDeletePrompt(contact)}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
                       >
                         <IconTrash className="w-3.5 h-3.5" />
@@ -605,6 +614,19 @@ export default function CrmView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Custom Confirmation Popup */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          type={confirmDialog.type}
+          onConfirm={confirmDialog.onConfirm}
+          onClose={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

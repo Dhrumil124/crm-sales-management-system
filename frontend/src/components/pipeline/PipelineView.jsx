@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import ConfirmModal from "../common/ConfirmModal";
 import {
   IconPlus,
   IconCalendar,
@@ -38,6 +39,7 @@ export default function PipelineView({
   onDeleteDeal
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [formData, setFormData] = useState({
     title: "",
     customerId: "",
@@ -47,6 +49,16 @@ export default function PipelineView({
     notes: ""
   });
   const [formError, setFormError] = useState("");
+
+  const handleDeletePrompt = (deal) => {
+    setConfirmDialog({
+      title: "Delete Deal",
+      message: `Are you sure you want to permanently delete deal "${deal.title}"? This action cannot be undone.`,
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: () => onDeleteDeal(deal.id)
+    });
+  };
 
   const openCreateModal = () => {
     setFormData({
@@ -161,11 +173,7 @@ export default function PipelineView({
                             {deal.title}
                           </h4>
                           <button
-                            onClick={() => {
-                              if (confirm(`Delete deal "${deal.title}"?`)) {
-                                onDeleteDeal(deal.id);
-                              }
-                            }}
+                            onClick={() => handleDeletePrompt(deal)}
                             title="Delete Deal"
                             className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                           >
@@ -379,6 +387,19 @@ export default function PipelineView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Custom Confirmation Popup */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          type={confirmDialog.type}
+          onConfirm={confirmDialog.onConfirm}
+          onClose={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { api } from "../../services/api";
+import ConfirmModal from "../common/ConfirmModal";
 import {
   IconPlus,
   IconTrash,
@@ -17,6 +18,7 @@ export default function QuotationView({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activeQuoteView, setActiveQuoteView] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const handleDownloadPdf = async (quote) => {
     try {
@@ -27,6 +29,16 @@ export default function QuotationView({
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const handleDeletePrompt = (quote) => {
+    setConfirmDialog({
+      title: "Delete Quotation",
+      message: `Are you sure you want to permanently delete quotation ${quote.quoteNumber}? This action cannot be undone.`,
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: () => onDeleteQuotation(quote.id)
+    });
   };
 
   // Dynamic Quote Creation Form State
@@ -303,11 +315,7 @@ export default function QuotationView({
                           )}
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Delete quotation ${quote.quoteNumber}?`)) {
-                              onDeleteQuotation(quote.id);
-                            }
-                          }}
+                          onClick={() => handleDeletePrompt(quote)}
                           title="Delete Quotation"
                           className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                         >
@@ -422,11 +430,7 @@ export default function QuotationView({
                       )}
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Delete quotation ${quote.quoteNumber}?`)) {
-                          onDeleteQuotation(quote.id);
-                        }
-                      }}
+                      onClick={() => handleDeletePrompt(quote)}
                       title="Delete Quotation"
                       className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0 cursor-pointer"
                     >
@@ -723,6 +727,19 @@ export default function QuotationView({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Custom Confirmation Popup */}
+      {confirmDialog && (
+        <ConfirmModal
+          isOpen={true}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmText={confirmDialog.confirmText}
+          type={confirmDialog.type}
+          onConfirm={confirmDialog.onConfirm}
+          onClose={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );
