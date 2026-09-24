@@ -11,6 +11,15 @@ import {
   IconX
 } from "../common/Icons";
 
+const STATUS_COLORS = {
+  New: "bg-blue-50 text-blue-700 border-blue-200",
+  Contacted: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Qualified: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Lost: "bg-slate-100 text-slate-600 border-slate-200",
+  Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  Inactive: "bg-rose-50 text-rose-700 border-rose-200"
+};
+
 export default function CrmView({
   customers,
   onAddCustomer,
@@ -156,7 +165,7 @@ export default function CrmView({
             <IconSearch className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by name, email, company..."
+              placeholder="Search contacts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-3 sm:pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
@@ -217,109 +226,102 @@ export default function CrmView({
             </button>
           </div>
         ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left text-sm table-fixed">
-              <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="px-2.5 sm:px-3 py-3.5 w-[24%] whitespace-nowrap">Contact & Company</th>
-                  <th className="px-2 py-3.5 w-[11%] whitespace-nowrap">Type</th>
-                  <th className="px-2 py-3.5 w-[13%] whitespace-nowrap">Lifecycle Status</th>
-                  <th className="px-2 sm:px-3 py-3.5 w-[21%] whitespace-nowrap">Communication</th>
-                  <th className="px-2 sm:px-3 py-3.5 w-[16%]">Notes</th>
-                  <th className="px-2.5 sm:px-3 py-3.5 w-[15%] text-right whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCustomers.map((contact) => {
-                  const isLead = contact.type === "lead";
+          <div>
+            {/* Desktop Table View (Hidden on mobile/tablet screens < 768px) */}
+            <div className="hidden md:block w-full overflow-x-auto">
+              <table className="w-full text-left text-sm table-fixed min-w-[700px]">
+                <thead className="bg-slate-50/80 text-slate-500 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-200">
+                  <tr>
+                    <th className="px-2.5 sm:px-3 py-3.5 w-[24%] whitespace-nowrap">Contact & Company</th>
+                    <th className="px-2 py-3.5 w-[11%] whitespace-nowrap">Type</th>
+                    <th className="px-2 py-3.5 w-[13%] whitespace-nowrap">Lifecycle Status</th>
+                    <th className="px-2 sm:px-3 py-3.5 w-[21%] whitespace-nowrap">Communication</th>
+                    <th className="px-2 sm:px-3 py-3.5 w-[16%]">Notes</th>
+                    <th className="px-2.5 sm:px-3 py-3.5 w-[15%] text-right whitespace-nowrap">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCustomers.map((contact) => {
+                    const isLead = contact.type === "lead";
 
-                  const statusColors = {
-                    New: "bg-blue-50 text-blue-700 border-blue-200",
-                    Contacted: "bg-indigo-50 text-indigo-700 border-indigo-200",
-                    Qualified: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                    Lost: "bg-slate-100 text-slate-600 border-slate-200",
-                    Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-                    Inactive: "bg-rose-50 text-rose-700 border-rose-200"
-                  };
-
-                  return (
-                    <tr key={contact.id} className="hover:bg-slate-50/50 transition-colors">
-                      {/* Name & Company */}
-                      <td className="px-2.5 sm:px-3 py-3.5 min-w-0 overflow-hidden">
-                        <div className="font-semibold text-slate-900 truncate block">{contact.name}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
-                          <IconBuilding className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                          <span className="truncate">{contact.company || "Individual Contact"}</span>
-                        </div>
-                      </td>
-
-                      {/* Type Badge */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                            isLead
-                              ? "bg-amber-50 text-amber-800 border-amber-200"
-                              : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          }`}
-                        >
-                          {isLead ? "Lead" : "Customer"}
-                        </span>
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="px-2 py-3.5 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                            statusColors[contact.status] || "bg-slate-100 text-slate-700 border-slate-200"
-                          }`}
-                        >
-                          {contact.status}
-                        </span>
-                      </td>
-
-                      {/* Contact Info */}
-                      <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
-                        <div className="text-xs text-slate-700 flex items-center gap-1.5 truncate">
-                          <IconMail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                          <span className="truncate">{contact.email}</span>
-                        </div>
-                        {contact.phone && (
-                          <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 truncate">
-                            <IconPhone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                            <span className="truncate">{contact.phone}</span>
+                    return (
+                      <tr key={contact.id} className="hover:bg-slate-50/50 transition-colors">
+                        {/* Name & Company */}
+                        <td className="px-2.5 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                          <div className="font-semibold text-slate-900 truncate block">{contact.name}</div>
+                          <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                            <IconBuilding className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate">{contact.company || "Individual Contact"}</span>
                           </div>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Notes snippet */}
-                      <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
-                        <p className="text-xs text-slate-500 truncate" title={contact.notes}>
-                          {contact.notes || "—"}
-                        </p>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="px-2.5 sm:px-3 py-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isLead && (
-                            <button
-                              onClick={() => handleConvertToCustomer(contact)}
-                              title="Convert to Customer"
-                              className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
-                            >
-                              Convert
-                            </button>
-                          )}
-                          <button
-                            onClick={() => openEditModal(contact)}
-                            title="Edit Contact"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0 cursor-pointer"
+                        {/* Type Badge */}
+                        <td className="px-2 py-3.5 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                              isLead
+                                ? "bg-amber-50 text-amber-800 border-amber-200"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                            }`}
                           >
-                            <IconEdit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (confirm(`Delete contact "${contact.name}"?`)) {
+                            {isLead ? "Lead" : "Customer"}
+                          </span>
+                        </td>
+
+                        {/* Status Badge */}
+                        <td className="px-2 py-3.5 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                              STATUS_COLORS[contact.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                            }`}
+                          >
+                            {contact.status}
+                          </span>
+                        </td>
+
+                        {/* Contact Info */}
+                        <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                          <div className="text-xs text-slate-700 flex items-center gap-1.5 truncate">
+                            <IconMail className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                            <span className="truncate">{contact.email}</span>
+                          </div>
+                          {contact.phone && (
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1 truncate">
+                              <IconPhone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                              <span className="truncate">{contact.phone}</span>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Notes snippet */}
+                        <td className="px-2 sm:px-3 py-3.5 min-w-0 overflow-hidden">
+                          <p className="text-xs text-slate-500 truncate" title={contact.notes}>
+                            {contact.notes || "—"}
+                          </p>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-2.5 sm:px-3 py-3.5 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {isLead && (
+                              <button
+                                onClick={() => handleConvertToCustomer(contact)}
+                                title="Convert to Customer"
+                                className="px-2 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
+                              >
+                                Convert
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEditModal(contact)}
+                              title="Edit Contact"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0 cursor-pointer"
+                            >
+                              <IconEdit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Delete contact "${contact.name}"?`)) {
                                 onDeleteCustomer(contact.id);
                               }
                             }}
@@ -336,7 +338,112 @@ export default function CrmView({
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Mobile Card View (Shown on screens < 768px, zero horizontal overlap) */}
+          <div className="block md:hidden divide-y divide-slate-100">
+            {filteredCustomers.map((contact) => {
+              const isLead = contact.type === "lead";
+
+              return (
+                <div key={contact.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                  {/* Row 1: Contact Name, Company & Badges */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-slate-900 text-sm truncate">{contact.name}</div>
+                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                        <IconBuilding className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{contact.company || "Individual Contact"}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                      <span
+                        className={`inline-flex items-center text-[11px] font-semibold px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          isLead
+                            ? "bg-amber-50 text-amber-800 border-amber-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        }`}
+                      >
+                        {isLead ? "Lead" : "Customer"}
+                      </span>
+                      <span
+                        className={`inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${
+                          STATUS_COLORS[contact.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {contact.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Contact Details (Email & Phone) */}
+                  <div className="space-y-1 pt-0.5 text-xs">
+                    {contact.email && (
+                      <div className="text-slate-700 flex items-center gap-2 truncate">
+                        <IconMail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <a href={`mailto:${contact.email}`} className="truncate hover:text-indigo-600 transition-colors">
+                          {contact.email}
+                        </a>
+                      </div>
+                    )}
+                    {contact.phone && (
+                      <div className="text-slate-600 flex items-center gap-2 truncate">
+                        <IconPhone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <a href={`tel:${contact.phone}`} className="truncate hover:text-indigo-600 transition-colors">
+                          {contact.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Row 3: Notes if present */}
+                  {contact.notes && (
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-600">
+                      <span className="font-semibold text-slate-700">Note: </span>
+                      <span className="break-words">{contact.notes}</span>
+                    </div>
+                  )}
+
+                  {/* Row 4: Actions Bar */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 gap-2">
+                    <div>
+                      {isLead ? (
+                        <button
+                          onClick={() => handleConvertToCustomer(contact)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                        >
+                          Convert to Customer
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-medium">Customer Account</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <button
+                        onClick={() => openEditModal(contact)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                      >
+                        <IconEdit className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete contact "${contact.name}"?`)) {
+                            onDeleteCustomer(contact.id);
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                      >
+                        <IconTrash className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Add / Edit Contact Modal */}
