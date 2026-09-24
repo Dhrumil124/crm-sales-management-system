@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { api } from "../../services/api";
 import {
   IconPlus,
   IconTrash,
@@ -13,8 +14,10 @@ const STATUSES = ["Open", "In Progress", "Waiting", "Resolved", "Closed"];
 export default function TicketView({
   tickets,
   customers,
+  user,
   onAddTicket,
   onUpdateStatus,
+  onAssignTicket,
   onAddComment,
   onDeleteTicket
 }) {
@@ -22,20 +25,40 @@ export default function TicketView({
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [activeTicket, setActiveTicket] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [agents, setAgents] = useState([]);
 
-  // New Ticket Form State
+  // Fetch verified agents list for assignment dropdowns
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAgents = async () => {
+      try {
+        const list = await api.tickets.getAgents();
+        if (isMounted && Array.isArray(list)) {
+          setAgents(list);
+        }
+      } catch (err) {
+        console.warn("Could not load organization agents:", err.message);
+      }
+    };
+    fetchAgents();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // New Ticket Form State - defaults to currently authenticated user
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     priority: "Medium",
     customerId: "",
-    assignedTo: "Support Team"
+    assignedTo: user?.name || ""
   });
   const [formError, setFormError] = useState("");
 
   // Comment reply state
   const [replyText, setReplyText] = useState("");
-  const replyAuthor = "Support Agent";
+  const replyAuthor = user?.name || "Support Agent";
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
@@ -51,7 +74,7 @@ export default function TicketView({
       description: "",
       priority: "Medium",
       customerId: customers[0]?.id || "",
-      assignedTo: "Support Team"
+      assignedTo: user?.name || agents[0]?.name || ""
     });
     setFormError("");
     setIsCreateModalOpen(true);
@@ -344,6 +367,33 @@ export default function TicketView({
               </div>
             </div>
 
+            {/* Quick Agent Reassignment */}
+            <div className="py-2.5 px-4 bg-slate-50 rounded-xl border border-slate-200/80 mb-3 flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-slate-700">Assigned Agent:</span>
+              <select
+                value={activeTicket.assignedToId || activeTicket.assignedTo || ""}
+                onChange={async (e) => {
+                  const target = e.target.value;
+                  if (onAssignTicket && target) {
+                    const updated = await onAssignTicket(activeTicket.id, target);
+                    if (updated) setActiveTicket(updated);
+                  }
+                }}
+                className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                {agents.map((ag) => (
+                  <option key={ag.id} value={ag.id}>
+                    {ag.name} {user?.id === ag.id ? "(You)" : `(${ag.role || "Agent"})`}
+                  </option>
+                ))}
+                {agents.length === 0 && (
+                  <option value={activeTicket.assignedTo || ""}>
+                    {activeTicket.assignedTo || user?.name || "Assigned Agent"}
+                  </option>
+                )}
+              </select>
+            </div>
+
             {/* Description & Comment Timeline */}
             <div className="flex-1 overflow-y-auto pr-1 space-y-4 my-2">
               {/* Initial Issue Description */}
@@ -480,15 +530,25 @@ export default function TicketView({
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Assigned Agent (Name)
+                    Assigned Agent *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.assignedTo}
                     onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                    placeholder="Support Team / Alex"
                     className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                  />
+                    required
+                  >
+                    {agents.map((ag) => (
+                      <option key={ag.id} value={ag.name || ag.id}>
+                        {ag.name} {user?.name === ag.name ? "(You)" : `(${ag.role || "Agent"})`}
+                      </option>
+                    ))}
+                    {agents.length === 0 && (
+                      <option value={user?.name || "Support Lead"}>
+                        {user?.name || "Support Lead"} (You)
+                      </option>
+                    )}
+                  </select>
                 </div>
               </div>
 

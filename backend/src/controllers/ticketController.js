@@ -79,6 +79,7 @@ const createTicket = async (req, res) => {
       assignedTo
     } = req.body || {};
 
+    const creatorUserId = req.user?.userId || req.user?.id;
     const newTicket = await ticketStore.create({
       title,
       description,
@@ -86,6 +87,7 @@ const createTicket = async (req, res) => {
       status,
       customerId,
       assignedTo,
+      creatorUserId,
       organizationId
     });
 
@@ -315,6 +317,24 @@ const deleteTicket = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/tickets/agents
+ * Retrieves verified team members / agents for the authenticated organization.
+ */
+const getTicketAgents = async (req, res) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(401).json({ message: "Organization context is required" });
+    }
+
+    const agents = await ticketStore.getAgents(organizationId);
+    res.json(agents);
+  } catch (error) {
+    res.status(500).json({ message: error.message || "Failed to load agents" });
+  }
+};
+
 module.exports = {
   getAllTickets,
   getTicketById,
@@ -324,5 +344,6 @@ module.exports = {
   assignTicket,
   addTicketComment,
   uploadAttachment,
-  deleteTicket
+  deleteTicket,
+  getTicketAgents
 };

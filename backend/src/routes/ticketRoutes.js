@@ -8,7 +8,8 @@ const {
   assignTicket,
   addTicketComment,
   uploadAttachment,
-  deleteTicket
+  deleteTicket,
+  getTicketAgents
 } = require("../controllers/ticketController");
 
 const {
@@ -29,10 +30,13 @@ const router = express.Router();
 // 1. GET /api/tickets - List tickets with filters, search, and pagination
 router.get("/", validateTicketPagination, getAllTickets);
 
-// 2. POST /api/tickets - Create ticket with server-side auto-numbering (TICKET-00001)
+// 2. GET /api/tickets/agents - List available support agents in organization
+router.get("/agents", getTicketAgents);
+
+// 3. POST /api/tickets - Create ticket with server-side auto-numbering (TICKET-00001)
 router.post("/", validateCreateTicket, createTicket);
 
-// 3. GET /api/tickets/:id - Retrieve ticket details by canonical ID
+// 4. GET /api/tickets/:id - Retrieve ticket details by canonical ID
 router.get("/:id", validateTicketId, getTicketById);
 
 // 4. PATCH /api/tickets/:id - Update valid ticket-level fields

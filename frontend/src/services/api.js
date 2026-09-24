@@ -196,6 +196,7 @@ export const api = {
       return request(`/tickets${qs ? `?${qs}` : ""}`);
     },
     getById: (id) => request(`/tickets/${id}`),
+    getAgents: () => request("/tickets/agents"),
     create: (data) => request("/tickets", { method: "POST", body: JSON.stringify(data) }),
     update: (id, data) => request(`/tickets/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     updateStatus: (id, status) => request(`/tickets/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),

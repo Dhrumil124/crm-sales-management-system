@@ -326,6 +326,19 @@ export default function App() {
     }
   };
 
+  const handleAssignTicket = async (id, assignedTo) => {
+    try {
+      const updated = await api.tickets.assign(id, assignedTo);
+      setTickets(prev => prev.map(t => t.id === id ? updated : t));
+      showToast(`Ticket assigned to ${updated.assignedTo || "Agent"}.`);
+      await loadAllData(true);
+      return updated;
+    } catch (err) {
+      showToast(`Failed to assign ticket: ${err.message}`, "error");
+      throw err;
+    }
+  };
+
   const handleDeleteTicket = async (id) => {
     try {
       await api.tickets.delete(id);
@@ -490,8 +503,10 @@ export default function App() {
                 <TicketView
                   tickets={tickets}
                   customers={customers}
+                  user={currentUser}
                   onAddTicket={handleAddTicket}
                   onUpdateStatus={handleUpdateTicketStatus}
+                  onAssignTicket={handleAssignTicket}
                   onAddComment={handleAddTicketComment}
                   onDeleteTicket={handleDeleteTicket}
                 />

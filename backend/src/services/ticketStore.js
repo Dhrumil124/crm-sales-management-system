@@ -362,6 +362,24 @@ const ticketStore = {
       }
     }
 
+    // Auto-assignment: whenever a new ticket is issued, assign a person (creator or default org user)
+    if (!assignedUserId) {
+      if (data.creatorUserId) {
+        const creator = await get(
+          "SELECT id FROM users WHERE id = ? AND organization_id = ?",
+          [data.creatorUserId, orgId]
+        );
+        if (creator) assignedUserId = creator.id;
+      }
+      if (!assignedUserId) {
+        const defaultUser = await get(
+          "SELECT id FROM users WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1",
+          [orgId]
+        );
+        if (defaultUser) assignedUserId = defaultUser.id;
+      }
+    }
+
     const priority = ALLOWED_PRIORITIES.includes(data.priority) ? data.priority : "Medium";
     const status = ALLOWED_STATUSES.includes(data.status) ? data.status : "Open";
     const title = (data.title || "").trim();
@@ -688,6 +706,16 @@ const ticketStore = {
       fileSize: attachmentRow.file_size,
       createdAt: attachmentRow.created_at
     };
+  },
+
+  /**
+   * Retrieves verified organization agents / team members.
+   */
+  async getAgents(organizationId) {
+    return await all(
+      "SELECT id, name, email, role FROM users WHERE organization_id = ? ORDER BY name ASC",
+      [organizationId]
+    );
   },
 
   /**

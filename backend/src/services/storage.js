@@ -339,16 +339,34 @@ async function ensureDatabaseSeeded() {
       }
     ];
 
+    const defaultUser = await get(
+      "SELECT id FROM users WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1",
+      [orgId]
+    );
+    const assignedUserId = defaultUser ? defaultUser.id : null;
+
     for (const t of initialTickets) {
       const exists = await get("SELECT id FROM tickets WHERE id = ? OR ticket_number = ?", [t.id, t.ticketNumber]);
       if (!exists) {
         await run(
-          `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [t.id, orgId, t.ticketNumber, t.customerId, t.title, t.description, t.priority, t.status, t.createdAt, t.createdAt]
+          `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, assigned_to, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [t.id, orgId, t.ticketNumber, t.customerId, t.title, t.description, t.priority, t.status, assignedUserId, t.createdAt, t.createdAt]
         );
       }
     }
+
+    // Backfill any existing unassigned tickets so they immediately display a verified assigned agent
+    await run(`
+      UPDATE tickets 
+      SET assigned_to = (
+        SELECT id FROM users 
+        WHERE users.organization_id = tickets.organization_id 
+        ORDER BY created_at ASC 
+        LIMIT 1
+      )
+      WHERE assigned_to IS NULL
+    `);
 
     isDbInitialized = true;
   } catch (err) {
