@@ -10,6 +10,90 @@ const { run, get, all, runTransaction, generateId } = require("../database/db");
 const ALLOWED_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 const ALLOWED_STATUSES = ["Open", "In Progress", "Waiting", "Resolved", "Closed"];
 
+const SPECIALIST_RULES = [
+  {
+    key: "auth",
+    name: "Alex Rivera",
+    email: "alex.rivera@support.net",
+    keywords: ["login", "signup", "sign-up", "sign-in", "signin", "auth", "sso", "saml", "password", "token", "session", "security", "credentials", "oauth", "2fa", "mfa"]
+  },
+  {
+    key: "billing",
+    name: "Sarah Jenkins",
+    email: "sarah.jenkins@billing.net",
+    keywords: ["billing", "invoice", "receipt", "payment", "tax", "vat", "pricing", "subscription", "refund", "charge", "cost", "compliance invoice"]
+  },
+  {
+    key: "tech",
+    name: "David Kim",
+    email: "david.kim@tech.net",
+    keywords: ["api", "webhook", "rate limit", "gateway", "latency", "timeout", "server", "endpoint", "spike", "database", "ssl", "certificate", "performance", "outbound", "dns"]
+  },
+  {
+    key: "support",
+    name: "Priya Sharma",
+    email: "priya.sharma@support.net",
+    keywords: ["account", "feature", "client", "onboarding", "portal", "ui", "export", "general", "inquiry", "help", "bug", "issue"]
+  }
+];
+
+/**
+ * Ensures team specialist accounts exist for the given organization.
+ */
+const ensureOrganizationSpecialists = async (orgId) => {
+  if (!orgId) return [];
+  const existingUsers = await all("SELECT id, name, email FROM users WHERE organization_id = ?", [orgId]);
+  const specialists = [];
+
+  for (const s of SPECIALIST_RULES) {
+    let user = existingUsers.find((u) => u.name && u.name.toLowerCase() === s.name.toLowerCase());
+    if (!user) {
+      const userId = `user-${orgId}-${s.key}`;
+      const uniqueEmail = `${s.key}.${orgId}@crm-support.internal`;
+      const now = new Date().toISOString();
+      await run(
+        `INSERT OR IGNORE INTO users (id, organization_id, name, email, password_hash, role, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [userId, orgId, s.name, uniqueEmail, "$2b$10$eDummyHashForInternalSupportSpecialistOnly000", "agent", now]
+      );
+      user = await get("SELECT id, name, email FROM users WHERE id = ?", [userId]);
+    }
+    if (user) {
+      specialists.push({ ...s, id: user.id });
+    }
+  }
+
+  return specialists;
+};
+
+/**
+ * Deterministically routes tickets to the specialist for that issue domain.
+ */
+const resolveSpecialistForTicket = (title = "", description = "", specialists = []) => {
+  const text = `${title} ${description}`.toLowerCase();
+  
+  // 1. Domain keyword match
+  for (const s of SPECIALIST_RULES) {
+    if (s.keywords.some((k) => text.includes(k))) {
+      const match = specialists.find((sp) => sp.key === s.key);
+      if (match) return match;
+    }
+  }
+
+  // 2. Deterministic hash fallback so the same work consistently gets the same agent
+  if (specialists.length > 0) {
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+      hash = (hash << 5) - hash + text.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % specialists.length;
+    return specialists[idx];
+  }
+
+  return null;
+};
+
 const formatCustomerDisplay = (name, company) => {
   const n = (name || "").trim();
   const c = (company || "").trim();
@@ -346,7 +430,19 @@ const ticketStore = {
       validCustomerId = cust.id;
     }
 
-    // Assigned user validation within organization
+    const priority = ALLOWED_PRIORITIES.includes(data.priority) ? data.priority : "Medium";
+    const status = ALLOWED_STATUSES.includes(data.status) ? data.status : "Open";
+    const title = (data.title || "").trim();
+    const description = (data.description || "").trim();
+
+    if (!title) {
+      throw new Error("Ticket title is required");
+    }
+    if (!description) {
+      throw new Error("Ticket description is required");
+    }
+
+    // Assigned user validation / automatic specialist assignment
     let assignedUserId = null;
     if (data.assignedTo && typeof data.assignedTo === "string" && data.assignedTo.trim()) {
       const trimmed = data.assignedTo.trim();
@@ -362,9 +458,14 @@ const ticketStore = {
       }
     }
 
-    // Auto-assignment: whenever a new ticket is issued, assign a person (creator or default org user)
+    // Automatic specialist routing: assign specific domain specialist based on issue
     if (!assignedUserId) {
-      if (data.creatorUserId) {
+      const specialists = await ensureOrganizationSpecialists(orgId);
+      const matched = resolveSpecialistForTicket(title, description, specialists);
+      if (matched) {
+        assignedUserId = matched.id;
+      }
+      if (!assignedUserId && data.creatorUserId) {
         const creator = await get(
           "SELECT id FROM users WHERE id = ? AND organization_id = ?",
           [data.creatorUserId, orgId]
@@ -378,18 +479,6 @@ const ticketStore = {
         );
         if (defaultUser) assignedUserId = defaultUser.id;
       }
-    }
-
-    const priority = ALLOWED_PRIORITIES.includes(data.priority) ? data.priority : "Medium";
-    const status = ALLOWED_STATUSES.includes(data.status) ? data.status : "Open";
-    const title = (data.title || "").trim();
-    const description = (data.description || "").trim();
-
-    if (!title) {
-      throw new Error("Ticket title is required");
-    }
-    if (!description) {
-      throw new Error("Ticket description is required");
     }
 
     const ticketId = generateId("tck");
@@ -739,7 +828,10 @@ const ticketStore = {
     });
 
     return true;
-  }
+  },
+
+  ensureOrganizationSpecialists,
+  resolveSpecialistForTicket
 };
 
 module.exports = ticketStore;

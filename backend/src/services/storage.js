@@ -14,6 +14,7 @@ const {
   generateId,
   calculateQuotationTotals
 } = require("../database/db");
+const { ensureOrganizationSpecialists, resolveSpecialistForTicket } = require("./ticketStore");
 
 // Canonical stage mapping tables between Frontend short names and SQLite stage names
 const STAGE_SHORT_TO_DB = {
@@ -339,15 +340,13 @@ async function ensureDatabaseSeeded() {
       }
     ];
 
-    const defaultUser = await get(
-      "SELECT id FROM users WHERE organization_id = ? ORDER BY created_at ASC LIMIT 1",
-      [orgId]
-    );
-    const assignedUserId = defaultUser ? defaultUser.id : null;
+    const specialists = await ensureOrganizationSpecialists(orgId);
 
     for (const t of initialTickets) {
       const exists = await get("SELECT id FROM tickets WHERE id = ? OR ticket_number = ?", [t.id, t.ticketNumber]);
       if (!exists) {
+        const spec = resolveSpecialistForTicket(t.title, t.description, specialists);
+        const assignedUserId = spec ? spec.id : null;
         await run(
           `INSERT INTO tickets (id, organization_id, ticket_number, customer_id, title, description, priority, status, assigned_to, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -356,17 +355,18 @@ async function ensureDatabaseSeeded() {
       }
     }
 
-    // Backfill any existing unassigned tickets so they immediately display a verified assigned agent
-    await run(`
-      UPDATE tickets 
-      SET assigned_to = (
-        SELECT id FROM users 
-        WHERE users.organization_id = tickets.organization_id 
-        ORDER BY created_at ASC 
-        LIMIT 1
-      )
-      WHERE assigned_to IS NULL
-    `);
+    // Automatically route all existing tickets across all organizations to their domain specialist
+    const allOrganizations = await all("SELECT id FROM organizations");
+    for (const org of allOrganizations) {
+      const orgSpecialists = await ensureOrganizationSpecialists(org.id);
+      const orgTickets = await all("SELECT id, title, description FROM tickets WHERE organization_id = ?", [org.id]);
+      for (const t of orgTickets) {
+        const spec = resolveSpecialistForTicket(t.title, t.description, orgSpecialists);
+        if (spec) {
+          await run("UPDATE tickets SET assigned_to = ? WHERE id = ?", [spec.id, t.id]);
+        }
+      }
+    }
 
     isDbInitialized = true;
   } catch (err) {
