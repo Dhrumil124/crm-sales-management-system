@@ -42,8 +42,17 @@ export default function QuotationView({
   const [formError, setFormError] = useState("");
 
   const filteredQuotations = useMemo(() => {
-    if (statusFilter === "all") return quotations;
-    return quotations.filter(q => q.status.toLowerCase() === statusFilter.toLowerCase());
+    let list = quotations;
+    if (statusFilter !== "all") {
+      list = quotations.filter(q => q.status.toLowerCase() === statusFilter.toLowerCase());
+    }
+    // Always sort with newest at the top
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.issueDate || 0).getTime();
+      const timeB = new Date(b.createdAt || b.issueDate || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return String(b.quoteNumber || "").localeCompare(String(a.quoteNumber || ""));
+    });
   }, [quotations, statusFilter]);
 
   // Live client calculation preview
@@ -126,7 +135,7 @@ export default function QuotationView({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 sm:pb-0">
       {/* Top Filter & Actions */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex bg-slate-100 p-1 rounded-xl overflow-x-auto max-w-full shrink-0">

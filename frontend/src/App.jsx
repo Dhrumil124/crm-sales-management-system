@@ -402,7 +402,7 @@ export default function App() {
   // Authenticated Workspace Application (Protected)
   // ------------------------------------------------------------------
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-100 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="flex h-full h-[100dvh] w-full overflow-hidden bg-slate-100 font-sans text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
       {/* Toast Alert Feedback */}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-bounce">
@@ -443,7 +443,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen max-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full h-[100dvh] overflow-hidden">
         <Header
           currentTab={currentTab}
           onRefresh={() => loadAllData(false)}
@@ -454,7 +454,7 @@ export default function App() {
           onToggleMobileMenu={() => setIsMobileMenuOpen((prev) => !prev)}
         />
 
-        <main className="flex-1 p-3.5 sm:p-5 md:p-6 lg:p-8 overflow-y-auto overflow-x-hidden min-w-0">
+        <main className="flex-1 px-3.5 pt-3.5 pb-36 sm:p-5 md:p-6 lg:p-8 overflow-y-auto overflow-x-hidden min-w-0">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center h-96 text-slate-400">
               <div className="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
