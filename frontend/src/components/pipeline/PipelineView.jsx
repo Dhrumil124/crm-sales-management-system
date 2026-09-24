@@ -40,6 +40,26 @@ export default function PipelineView({
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [selectedMobileStageId, setSelectedMobileStageId] = useState("Lead");
+
+  const currentStageIndex = PIPELINE_STAGES.findIndex(s => s.id === selectedMobileStageId);
+  const safeStageIndex = currentStageIndex === -1 ? 0 : currentStageIndex;
+  const currentStage = PIPELINE_STAGES[safeStageIndex];
+  const mobileStageDeals = deals.filter(d => matchesStage(d.stage, currentStage.id));
+  const mobileStageValue = mobileStageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+
+  const handlePrevStage = () => {
+    if (safeStageIndex > 0) {
+      setSelectedMobileStageId(PIPELINE_STAGES[safeStageIndex - 1].id);
+    }
+  };
+
+  const handleNextStage = () => {
+    if (safeStageIndex < PIPELINE_STAGES.length - 1) {
+      setSelectedMobileStageId(PIPELINE_STAGES[safeStageIndex + 1].id);
+    }
+  };
+
   const [formData, setFormData] = useState({
     title: "",
     customerId: "",
@@ -129,8 +149,181 @@ export default function PipelineView({
         </button>
       </div>
 
-      {/* Kanban Board Columns Grid */}
-      <div className="flex gap-4 items-start overflow-x-auto pb-6 w-full touch-pan-x">
+      {/* Mobile View: Stage Dropdown & Card List (No horizontal scrolling on phones) */}
+      <div className="block md:hidden space-y-4">
+        {/* Stage Switcher Controls */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Stage
+            </span>
+            <div className="text-xs font-bold text-indigo-600">
+              ₹{mobileStageValue.toLocaleString("en-IN")} ({mobileStageDeals.length} {mobileStageDeals.length === 1 ? "deal" : "deals"})
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrevStage}
+              disabled={safeStageIndex === 0}
+              aria-label="Previous Stage"
+              className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+            >
+              <IconChevronLeft className="w-4 h-4" />
+            </button>
+
+            <select
+              value={selectedMobileStageId}
+              onChange={(e) => setSelectedMobileStageId(e.target.value)}
+              className="flex-1 bg-white border border-slate-200 text-slate-800 text-sm font-semibold rounded-xl px-3 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs cursor-pointer"
+            >
+              {PIPELINE_STAGES.map((s, idx) => {
+                const count = deals.filter(d => matchesStage(d.stage, s.id)).length;
+                return (
+                  <option key={s.id} value={s.id}>
+                    {idx + 1}. {s.label} ({count})
+                  </option>
+                );
+              })}
+            </select>
+
+            <button
+              onClick={handleNextStage}
+              disabled={safeStageIndex === PIPELINE_STAGES.length - 1}
+              aria-label="Next Stage"
+              className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-slate-50 transition-colors shrink-0 cursor-pointer"
+            >
+              <IconChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Stage Progress Bar Indicator */}
+          <div className="flex gap-1.5 pt-1">
+            {PIPELINE_STAGES.map((s, idx) => (
+              <button
+                key={s.id}
+                onClick={() => setSelectedMobileStageId(s.id)}
+                className={`flex-1 h-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === safeStageIndex
+                    ? "bg-indigo-600 scale-y-125"
+                    : idx < safeStageIndex
+                    ? "bg-indigo-200"
+                    : "bg-slate-200"
+                }`}
+                title={s.label}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Mobile Deal Cards */}
+        <div className="space-y-3">
+          {mobileStageDeals.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-xs text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                <IconBuilding className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-700">No deals in {currentStage.label}</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+                Tap "New Opportunity" above to create one or use another stage to view your deals.
+              </p>
+            </div>
+          ) : (
+            mobileStageDeals.map((deal) => {
+              const colIdx = safeStageIndex;
+              return (
+                <div
+                  key={deal.id}
+                  className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="font-bold text-sm text-slate-900 leading-snug">
+                        {deal.title}
+                      </h4>
+                      <button
+                        onClick={() => handleDeletePrompt(deal)}
+                        title="Delete Deal"
+                        className="text-slate-400 hover:text-rose-500 transition-colors p-1 cursor-pointer"
+                      >
+                        <IconTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-2">
+                      <IconBuilding className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      <span className="truncate">{deal.customerName || "Unassigned"}</span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="text-base font-bold text-indigo-600">
+                        ₹{Number(deal.value).toLocaleString("en-IN")}
+                      </div>
+                      {deal.expectedCloseDate && (
+                        <div className="text-xs text-slate-400 flex items-center gap-1">
+                          <IconCalendar className="w-3.5 h-3.5 shrink-0" />
+                          <span>{deal.expectedCloseDate}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {deal.notes && (
+                      <p className="text-xs text-slate-600 mt-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        {deal.notes}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Stage Advance Buttons */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+                    <button
+                      disabled={colIdx === 0}
+                      onClick={() => moveStage(deal, -1)}
+                      title="Move to Previous Stage"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 border border-slate-200 disabled:opacity-20 disabled:hover:bg-transparent font-medium cursor-pointer"
+                    >
+                      <IconChevronLeft className="w-3.5 h-3.5" />
+                      <span>Prev</span>
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {currentStage.id !== "Won" && (
+                        <button
+                          onClick={() => onUpdateStage(deal.id, "Won")}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60 cursor-pointer"
+                        >
+                          Won
+                        </button>
+                      )}
+                      {currentStage.id !== "Lost" && (
+                        <button
+                          onClick={() => onUpdateStage(deal.id, "Lost")}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200/60 cursor-pointer"
+                        >
+                          Lost
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      disabled={colIdx === PIPELINE_STAGES.length - 1}
+                      onClick={() => moveStage(deal, 1)}
+                      title="Advance to Next Stage"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-indigo-600 bg-indigo-50/60 hover:bg-indigo-100 border border-indigo-200/60 disabled:opacity-20 disabled:hover:bg-transparent font-medium cursor-pointer"
+                    >
+                      <span>Next</span>
+                      <IconChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Kanban Board Columns Grid */}
+      <div className="hidden md:flex gap-4 items-start overflow-x-auto pb-6 w-full touch-pan-x">
         {PIPELINE_STAGES.map((col, colIdx) => {
           const stageDeals = deals.filter(d => matchesStage(d.stage, col.id));
           const colValue = stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
