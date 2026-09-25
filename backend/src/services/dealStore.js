@@ -543,6 +543,12 @@ const dealStore = {
 
     // 2. Atomically record stage transition in deal_stage_history
     const historyId = generateId("dhist");
+    let validUserId = null;
+    if (userId) {
+      const u = await get("SELECT id FROM users WHERE id = ?", [userId]);
+      if (u) validUserId = u.id;
+    }
+
     await run(
       `INSERT INTO deal_stage_history (
          id, deal_id, organization_id, from_stage_id, from_stage_name, to_stage_id, to_stage_name, user_id, created_at
@@ -555,7 +561,7 @@ const dealStore = {
         previousStageName,
         targetStage.id,
         targetStage.name,
-        userId || null,
+        validUserId,
         now
       ]
     );
