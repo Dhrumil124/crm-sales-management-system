@@ -76,6 +76,24 @@ let isDbInitialized = false;
  */
 async function ensureDatabaseSeeded() {
   if (isDbInitialized) return;
+
+  // By default in production, start with a 100% clean database (no demo data)
+  if (process.env.SEED_DEMO_DATA !== "true") {
+    try {
+      // Clean up any legacy development demo records if they were previously inserted
+      await run("DELETE FROM quotation_items WHERE quotation_id IN ('quote-demo-001', 'quote-2', 'quote-3')");
+      await run("DELETE FROM quotations WHERE id IN ('quote-demo-001', 'quote-2', 'quote-3')");
+      await run("DELETE FROM tickets WHERE id IN ('tck-demo-001', 'tck-2', 'tck-3')");
+      await run("DELETE FROM deals WHERE id IN ('deal-1', 'deal-2', 'deal-3', 'deal-4', 'deal-5')");
+      await run("DELETE FROM customers WHERE id IN ('cust-1', 'cust-2', 'cust-3', 'cust-4')");
+      await run("DELETE FROM leads WHERE id IN ('cust-1', 'cust-2', 'cust-3', 'cust-4')");
+    } catch {
+      // Ignore if tables don't exist yet
+    }
+    isDbInitialized = true;
+    return;
+  }
+
   try {
     const orgs = await all("SELECT id FROM organizations LIMIT 1");
     if (!orgs || orgs.length === 0) return;
