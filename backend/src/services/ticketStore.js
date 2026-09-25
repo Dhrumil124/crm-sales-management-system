@@ -703,6 +703,10 @@ const ticketStore = {
     if (!ticket) return null;
 
     let authorUserId = userId;
+    if (authorUserId) {
+      const u = await get("SELECT id FROM users WHERE id = ?", [authorUserId]);
+      if (!u) authorUserId = null;
+    }
     if (!authorUserId && author) {
       const user = await get("SELECT id FROM users WHERE name = ? AND organization_id = ? LIMIT 1", [
         author,
@@ -752,6 +756,12 @@ const ticketStore = {
     const attachmentId = generateId("att");
     const now = new Date().toISOString();
 
+    let validUploadedBy = userId;
+    if (validUploadedBy) {
+      const u = await get("SELECT id FROM users WHERE id = ?", [validUploadedBy]);
+      if (!u) validUploadedBy = null;
+    }
+
     await run(
       `INSERT INTO ticket_attachments (
         id, ticket_id, comment_id, uploaded_by, original_filename,
@@ -761,7 +771,7 @@ const ticketStore = {
         attachmentId,
         ticket.id,
         commentId,
-        userId,
+        validUploadedBy,
         originalFilename.trim(),
         storedPath.trim(),
         mimeType || "application/octet-stream",
