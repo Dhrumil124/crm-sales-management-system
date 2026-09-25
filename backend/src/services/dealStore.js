@@ -3,7 +3,7 @@
  * SQLite direct queries with enforced multi-tenant organization scoping.
  */
 
-const { run, get, all, generateId } = require("../database/db");
+const { run, get, all, generateId, seedDefaultPipelineStages } = require("../database/db");
 
 /**
  * Normalizes customer display string for deal client/company
@@ -90,6 +90,9 @@ const formatDeal = (row) => {
  */
 const resolveStage = async (stageInput, organizationId) => {
   if (!stageInput || !organizationId) return null;
+  // Ensure default stages exist for this organization
+  await seedDefaultPipelineStages(organizationId);
+
   const trimmed = String(stageInput).trim();
   const normalizedName = normalizeStageAlias(trimmed);
 
@@ -317,6 +320,7 @@ const dealStore = {
       "INSERT OR IGNORE INTO organizations (id, name, created_at) VALUES (?, ?, ?)",
       [organizationId, "Workspace", new Date().toISOString()]
     );
+    await seedDefaultPipelineStages(organizationId);
 
     if (!title || !title.trim()) {
       const err = new Error("Deal title is required");

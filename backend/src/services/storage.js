@@ -12,7 +12,8 @@ const {
   all,
   runTransaction,
   generateId,
-  calculateQuotationTotals
+  calculateQuotationTotals,
+  seedDefaultPipelineStages
 } = require("../database/db");
 const { ensureOrganizationSpecialists, resolveSpecialistForTicket } = require("./ticketStore");
 
@@ -661,6 +662,7 @@ const customerStore = {
       "INSERT OR IGNORE INTO organizations (id, name, created_at) VALUES (?, ?, ?)",
       [orgId, "Workspace", now]
     );
+    await seedDefaultPipelineStages(orgId);
 
     const isCustomer = data.type === "customer";
 
