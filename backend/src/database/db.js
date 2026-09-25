@@ -1,8 +1,15 @@
 const sqlite3 = require("sqlite3");
 const path = require("path");
+const fs = require("fs");
 
-// Database file path inside backend/src/database/
-const dbPath = path.join(__dirname, "crm.sqlite");
+// Database file path: supports persistent disk mount path on Render (e.g. DB_PATH=/var/data/crm.sqlite)
+const dbPath = process.env.DB_PATH || path.join(__dirname, "crm.sqlite");
+
+// Ensure database directory exists if custom path is provided
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 
 // Initialize SQLite database instance
 const db = new sqlite3.Database(dbPath, (err) => {

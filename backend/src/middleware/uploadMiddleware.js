@@ -2,8 +2,10 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, "../../storage/attachments");
+// Ensure upload directory exists (supports persistent volume on Render via STORAGE_DIR)
+const uploadDir = process.env.STORAGE_DIR 
+  ? path.join(process.env.STORAGE_DIR, "attachments")
+  : path.join(__dirname, "../../storage/attachments");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
