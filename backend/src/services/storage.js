@@ -655,6 +655,13 @@ const customerStore = {
 
     const newId = generateId("cust");
     const now = new Date().toISOString();
+
+    // Ensure organization exists in database so foreign keys never fail
+    await run(
+      "INSERT OR IGNORE INTO organizations (id, name, created_at) VALUES (?, ?, ?)",
+      [orgId, "Workspace", now]
+    );
+
     const isCustomer = data.type === "customer";
 
     if (isCustomer) {

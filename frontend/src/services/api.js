@@ -45,7 +45,9 @@ async function request(endpoint, options = {}) {
       let errorMessage = `HTTP Error ${response.status}`;
       try {
         const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
+        errorMessage = errorData.error && errorData.error !== errorData.message
+          ? `${errorData.message} (${errorData.error})`
+          : (errorData.message || errorMessage);
       } catch {
         // use default message
       }

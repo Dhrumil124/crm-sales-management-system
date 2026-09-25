@@ -313,6 +313,11 @@ const dealStore = {
     if (!organizationId) {
       throw new Error("organizationId is strictly required");
     }
+    await run(
+      "INSERT OR IGNORE INTO organizations (id, name, created_at) VALUES (?, ?, ?)",
+      [organizationId, "Workspace", new Date().toISOString()]
+    );
+
     if (!title || !title.trim()) {
       const err = new Error("Deal title is required");
       err.statusCode = 400;

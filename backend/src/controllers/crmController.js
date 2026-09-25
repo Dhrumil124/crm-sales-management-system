@@ -64,7 +64,8 @@ const createCustomer = async (req, res) => {
 
     res.status(201).json(newCustomer);
   } catch (error) {
-    res.status(500).json({ message: "Failed to create contact", error: error.message });
+    console.error("createCustomer error:", error);
+    res.status(500).json({ message: error.message || "Failed to create contact", error: error.message });
   }
 };
 
