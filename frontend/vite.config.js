@@ -120,6 +120,7 @@ export default defineConfig(async () => {
     server: {
       host: true,
       port: freePort,
+      open: true,
       strictPort: false,
       proxy: {
         '/api': {
