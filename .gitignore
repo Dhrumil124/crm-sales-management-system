@@ -27,6 +27,8 @@ lerna-debug.log*
 *.sqlite-shm
 *.sqlite3
 *.db
+*.active_backend_port.json
+.active_backend_port.json
 
 # Editor directories and files
 .vscode/*

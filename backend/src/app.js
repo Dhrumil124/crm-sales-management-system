@@ -22,10 +22,33 @@ if (!Object.prototype.find) {
 
 const app = express();
 
-// Support CORS for local development and production Vercel frontend
-const allowedOrigins = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(",") : null;
+// Support CORS for local development across any port (e.g. 5173, 5174, 5175...) and production Vercel frontend
+const allowedOrigins = process.env.CLIENT_URL 
+  ? process.env.CLIENT_URL.split(",").map((o) => o.trim()) 
+  : null;
+
 app.use(cors({
-  origin: allowedOrigins ? allowedOrigins : "*",
+  origin: function (origin, callback) {
+    // Allow non-browser requests (e.g., Postman, mobile, server-to-server, Vite proxy)
+    if (!origin) return callback(null, true);
+
+    // If explicit CLIENT_URL whitelist matches
+    if (allowedOrigins && allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // Automatically allow any localhost or 127.0.0.1 port for smooth simultaneous multi-project presentations
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    // If no CLIENT_URL configured, allow origin
+    if (!allowedOrigins) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS origin not allowed: ${origin}`));
+  },
   credentials: true
 }));
 
@@ -45,7 +68,11 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy", timestamp: new Date().toISOString() });
+  res.status(200).json({ status: "healthy", service: "crm-sales-management-system", timestamp: new Date().toISOString() });
+});
+
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "healthy", service: "crm-sales-management-system", timestamp: new Date().toISOString() });
 });
 
 app.use("/api", routes);
