@@ -1,6 +1,13 @@
 const sqlite3 = require("sqlite3");
 const path = require("path");
 const fs = require("fs");
+const {
+  connectMongo,
+  loadFromMongoToSqlite,
+  queueTableSync,
+  detectAffectedTable,
+  models
+} = require("./mongoSync");
 
 // Database file path: supports persistent disk mount path on Render (e.g. DB_PATH=/var/data/crm.sqlite)
 const dbPath = process.env.DB_PATH || path.join(__dirname, "crm.sqlite");
@@ -20,6 +27,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
     db.run("PRAGMA foreign_keys = ON;");
     db.run("PRAGMA journal_mode = WAL;");
     db.run("PRAGMA busy_timeout = 5000;");
+
+    // Initialize MongoDB Atlas connection & sync
+    connectMongo().then(() => {
+      loadFromMongoToSqlite(db);
+    });
   }
 });
 
@@ -409,6 +421,13 @@ const run = (sql, params = []) => {
   return new Promise((resolve, reject) => {
     db.run(sql, params, function (err) {
       if (err) return reject(err);
+
+      // Automatically sync mutated table to MongoDB Atlas
+      const table = detectAffectedTable(sql);
+      if (table) {
+        queueTableSync(table, db);
+      }
+
       resolve({ lastID: this.lastID, changes: this.changes });
     });
   });
@@ -545,5 +564,7 @@ module.exports = {
   seedDefaultPipelineStages,
   DEFAULT_PIPELINE_STAGES,
   generateId,
-  calculateQuotationTotals
+  calculateQuotationTotals,
+  models,
+  connectMongo
 };
